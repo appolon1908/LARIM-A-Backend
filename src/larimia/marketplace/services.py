@@ -9,7 +9,21 @@ from sqlalchemy.orm import Session
 from larimia.adapters.payment_registry import payment_provider
 from larimia.bookings.domain.enums import BookingStatus
 from larimia.bookings.infrastructure.models import Booking
-from larimia.marketplace.models import *
+from larimia.marketplace.models import (
+    Assignment,
+    AvailabilityException,
+    AvailabilityRule,
+    Customer,
+    CustomerAddress,
+    DispatchOffer,
+    PaymentIntent,
+    PricePolicy,
+    Provider,
+    ProviderService,
+    Quote,
+    Service,
+    Visit,
+)
 from larimia.shared.audit import record_audit
 from larimia.shared.errors import ConflictError, NotFoundError
 from larimia.shared.events import emit
