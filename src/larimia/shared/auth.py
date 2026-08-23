@@ -2,7 +2,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from functools import lru_cache
 import httpx
-from jose import jwt, JWTError
+import jwt
+from jwt import PyJWK, PyJWTError
 from fastapi import Depends, Header, HTTPException, status
 from larimia.config import get_settings
 
@@ -37,6 +38,9 @@ def _principal_from_token(token: str) -> Principal:
     settings = get_settings()
     try:
         header = jwt.get_unverified_header(token)
+        algorithm = header.get("alg")
+        if algorithm not in settings.oidc_algorithm_list:
+            raise HTTPException(status_code=401, detail={"code": "UNSUPPORTED_SIGNING_ALGORITHM"})
         keys = _jwks(settings.oidc_jwks_url).get("keys", [])
         key = next((k for k in keys if k.get("kid") == header.get("kid")), None)
         if not key:
@@ -48,13 +52,13 @@ def _principal_from_token(token: str) -> Principal:
 
         claims = jwt.decode(
             token,
-            key,
-            algorithms=[header.get("alg", "RS256")],
+            PyJWK.from_dict(key).key,
+            algorithms=settings.oidc_algorithm_list,
             audience=settings.oidc_audience,
             issuer=settings.oidc_issuer,
             options={"verify_at_hash": False},
         )
-    except (JWTError, httpx.HTTPError) as exc:
+    except (PyJWTError, ValueError, KeyError, httpx.HTTPError) as exc:
         raise HTTPException(status_code=401, detail={"code": "INVALID_TOKEN"}) from exc
 
     roles = set()
