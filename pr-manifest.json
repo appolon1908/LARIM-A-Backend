@@ -1,0 +1,8 @@
+{
+  "FINAL_STATUS": "PR_REVIEW_CANDIDATE",
+  "MIGRATION_HEAD": "0003",
+  "BACKEND_SYNTAX": "PASS",
+  "AUTHORITY": "BINDING_IMPLEMENTATION.md",
+  "ODOO_ROLE": "CRM/campaign/projection only",
+  "PRODUCTION_VERDICT": "NO-GO until external adapters and certification gates pass"
+}

@@ -1,26 +1,40 @@
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, Field
-from larimia.shared.auth import Principal, Role, require_roles
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from larimia.marketplace.models import PricePolicy, Service
+from larimia.shared.db import get_db
 
 router = APIRouter()
 
-CATALOG = [
-    {"code": "MASSAGE_60", "category": "massage", "name": {"es-DO": "Masaje 60 min", "en-US": "60 min Massage"}, "duration_minutes": 60},
-    {"code": "HAIRCUT", "category": "haircut", "name": {"es-DO": "Corte de cabello", "en-US": "Haircut"}, "duration_minutes": 45},
-    {"code": "MAKEUP", "category": "makeup", "name": {"es-DO": "Maquillaje", "en-US": "Makeup"}, "duration_minutes": 60},
-    {"code": "TRAINING_60", "category": "personal-training", "name": {"es-DO": "Entrenamiento 60 min", "en-US": "60 min Training"}, "duration_minutes": 60},
-]
-
-class ServiceUpsert(BaseModel):
-    code: str = Field(min_length=3, max_length=80)
-    category: str
-    name: dict[str, str]
-    duration_minutes: int = Field(gt=0, le=480)
 
 @router.get("")
-def list_catalog(market: str = "DO-SDQ"):
-    return {"market": market, "services": CATALOG}
-
-@router.post("", status_code=201)
-def create_service(payload: ServiceUpsert, _: Principal = Depends(require_roles(Role.CATALOG_MANAGER))):
-    return {"status": "created", "service": payload.model_dump()}
+def catalog(market: str = "DO-SDQ", db: Session = Depends(get_db)):
+    rows = list(
+        db.execute(
+            select(Service, PricePolicy)
+            .join(PricePolicy, PricePolicy.service_id == Service.id)
+            .where(
+                Service.active.is_(True),
+                PricePolicy.active.is_(True),
+                PricePolicy.market_code == market,
+            )
+            .order_by(Service.category, Service.code)
+        )
+    )
+    return {
+        "market": market,
+        "services": [
+            {
+                "id": str(s.id),
+                "code": s.code,
+                "category": s.category,
+                "name": {"es-DO": s.name_es, "en-US": s.name_en},
+                "duration_minutes": s.duration_minutes,
+                "currency": p.currency,
+                "base_price_minor": p.base_price_minor,
+                "price_policy_version": p.version,
+            }
+            for s, p in rows
+        ],
+    }

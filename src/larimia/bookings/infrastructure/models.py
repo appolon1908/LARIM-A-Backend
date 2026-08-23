@@ -8,6 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from larimia.bookings.domain.enums import BookingStatus
 from larimia.shared.db import Base
 
+
 class Booking(Base):
     __tablename__ = "bookings"
 

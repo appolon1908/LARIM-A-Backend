@@ -1,44 +1,59 @@
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
+
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+from larimia.marketplace.services import QuoteService
+from larimia.shared.auth import Principal, get_principal
+from larimia.shared.authorization import customer_for_principal, require_market
+from larimia.shared.db import get_db
 from larimia.shared.idempotency import require_idempotency_key
+from larimia.shared.idempotency_service import complete, reserve
 
 router = APIRouter()
 
-BASE_PRICES = {
-    "MASSAGE_60": 450000,
-    "HAIRCUT": 250000,
-    "MAKEUP": 400000,
-    "TRAINING_60": 300000,
-}
 
 class QuoteRequest(BaseModel):
     market_code: str
-    currency: str = Field(pattern=r"^[A-Z]{3}$")
     service_code: str
-    address_id: str
+    address_id: uuid.UUID
     scheduled_start: datetime
-    add_ons: list[str] = []
+
 
 @router.post("", status_code=201)
-def create_quote(payload: QuoteRequest, _: str = Depends(require_idempotency_key)):
-    base = BASE_PRICES.get(payload.service_code, 300000)
-    travel = 50000
-    subtotal = base + travel
-    tax = 0
-    total = subtotal + tax
-    return {
-        "id": str(uuid.uuid4()),
-        "market_code": payload.market_code,
-        "currency": payload.currency,
-        "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat(),
-        "lines": [
-            {"type": "SERVICE", "amount_minor": base},
-            {"type": "TRAVEL", "amount_minor": travel},
-        ],
-        "subtotal_minor": subtotal,
-        "tax_minor": tax,
-        "total_minor": total,
-        "pricing_policy_version": 1,
+def create(
+    payload: QuoteRequest,
+    key: str = Depends(require_idempotency_key),
+    principal: Principal = Depends(get_principal),
+    db: Session = Depends(get_db),
+):
+    c = customer_for_principal(db, principal)
+    require_market(principal, payload.market_code)
+    idem, replay = reserve(
+        db,
+        actor_subject=principal.subject,
+        operation="quote.create",
+        key=key,
+        payload=payload.model_dump(),
+    )
+    if replay is not None:
+        return replay
+    q = QuoteService.create(db, customer=c, **payload.model_dump())
+    result = {
+        "id": str(q.id),
+        "status": q.status,
+        "market_code": q.market_code,
+        "currency": q.currency,
+        "subtotal_minor": q.subtotal_minor,
+        "tax_minor": q.tax_minor,
+        "total_minor": q.total_minor,
+        "scheduled_start": q.scheduled_start.isoformat(),
+        "scheduled_end": q.scheduled_end.isoformat(),
+        "expires_at": q.expires_at.isoformat(),
+        "price_policy_version": q.price_policy_version,
     }
+    complete(db, idem, result)
+    db.commit()
+    return result

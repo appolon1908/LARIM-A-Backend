@@ -1,5 +1,6 @@
 from fastapi import Header, HTTPException
 
+
 def require_idempotency_key(
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ) -> str:
