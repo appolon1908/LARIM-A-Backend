@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     oidc_issuer: str = "https://identity.example.com/"
     oidc_audience: str = "larimia-api"
     oidc_jwks_url: str = ""
+    oidc_algorithms: str = "RS256"
     log_level: str = "INFO"
     payment_provider_code: str = "sandbox"
     webhook_secrets_json: str = "{}"
@@ -30,6 +31,10 @@ class Settings(BaseSettings):
     def cors_origin_list(self) -> list[str]:
         return [v.strip() for v in self.cors_origins.split(",") if v.strip()]
 
+    @property
+    def oidc_algorithm_list(self) -> list[str]:
+        return [v.strip() for v in self.oidc_algorithms.split(",") if v.strip()]
+
     @model_validator(mode="after")
     def production_guards(self):
         if self.env.lower() == "production":
@@ -39,6 +44,8 @@ class Settings(BaseSettings):
                 raise ValueError("Production requires a real OIDC issuer")
             if not self.oidc_jwks_url:
                 raise ValueError("Production requires LARIMIA_OIDC_JWKS_URL")
+            if not self.oidc_algorithm_list:
+                raise ValueError("Production requires at least one OIDC signing algorithm")
         return self
 
 @lru_cache
