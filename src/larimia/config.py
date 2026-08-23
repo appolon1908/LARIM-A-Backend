@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     oidc_audience: str = "larimia-api"
     oidc_jwks_url: str = ""
     log_level: str = "INFO"
+    payment_provider_code: str = "sandbox"
+    webhook_secrets_json: str = "{}"
+    websocket_redis_url: str = ""
+    max_webhook_bytes: int = 1048576
     enabled_capabilities: str = "request_intake,provider_self_service,matching,quotes,messaging,reviews,instant_booking,memberships,partners"
 
     @property

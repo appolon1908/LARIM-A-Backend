@@ -42,3 +42,5 @@ else:
 
 from larimia.shared.idempotency_models import IdempotencyRecord
 from larimia.integrations.models import IntegrationStatus
+
+from larimia.marketplace.models import *  # noqa: F401,F403

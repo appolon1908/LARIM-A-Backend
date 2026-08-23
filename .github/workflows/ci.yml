@@ -3,7 +3,8 @@ on:
   pull_request:
   push:
     branches: [main]
-
+permissions:
+  contents: read
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -17,17 +18,27 @@ jobs:
         ports: ["5432:5432"]
         options: >-
           --health-cmd "pg_isready -U larimia -d larimia"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 20
+          --health-interval 5s --health-timeout 5s --health-retries 30
+      redis:
+        image: redis:8-alpine
+        ports: ["6379:6379"]
     env:
+      LARIMIA_ENV: test
+      LARIMIA_AUTH_MODE: demo
       LARIMIA_DATABASE_URL: postgresql+psycopg://larimia:larimia@localhost:5432/larimia
+      LARIMIA_REDIS_URL: redis://localhost:6379/0
+      LARIMIA_WEBSOCKET_REDIS_URL: redis://localhost:6379/1
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
+        with: { python-version: "3.13" }
       - run: pip install uv
       - run: uv pip install --system -e ".[dev]"
       - run: ruff check src tests
+      - run: alembic upgrade head
       - run: pytest -q
+      - run: python scripts/export_openapi.py
+      - run: git diff --exit-code -- openapi.generated.json
+      - run: alembic downgrade 0002
+      - run: alembic upgrade head
+      - run: python -m compileall -q src

@@ -6,7 +6,7 @@ FastAPI/Python backend for the LARIMÍA Customer, Pro and Operations platforms.
 
 - modular domain structure
 - PostgreSQL/PostGIS persistence
-- Alembic baseline migration
+- Alembic migrations through head `0003`
 - Redis + RabbitMQ + Celery runtime
 - Customer, Provider, Ops, Partner and integration API surfaces
 - WebSocket routes for booking state, dispatch and provider offers
@@ -22,7 +22,7 @@ FastAPI/Python backend for the LARIMÍA Customer, Pro and Operations platforms.
 
 ## Important
 
-`X-Demo-Subject` / `X-Demo-Roles` are a **development-only authentication shim**. Production launch requires a real OIDC provider and verified JWT claims.
+`X-Demo-Subject` / `X-Demo-Roles` are a **development-only authentication shim**. Production launch requires the Keycloak deployment at `auth.codestra.co` and verified JWT claims.
 
 External payment, identity, background-check, routing, SMS/email/push providers are intentionally adapter boundaries. Real provider credentials and market certification are deployment work, not safe defaults to hard-code into a repository.
 
@@ -40,4 +40,4 @@ Then visit:
 - live: `http://localhost:8000/v1/health/live`
 - ready: `http://localhost:8000/v1/health/ready`
 
-See `docs/API-MATRIX.md` and `docs/PRODUCTION-GATES.md`.
+Review `BINDING_IMPLEMENTATION.md` first; it defines implementation authority and preserves the production `NO-GO` gates. Then see `docs/API-MATRIX.md` and `docs/PRODUCTION-GATES.md`.
