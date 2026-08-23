@@ -5,14 +5,19 @@ on:
     branches: [main]
 permissions:
   contents: read
+  pull-requests: read
 jobs:
   audit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with: { python-version: "3.13" }
       - run: pip install uv pip-audit
       - run: uv export --format requirements-txt --no-hashes --output-file requirements.lock.txt
       - run: pip-audit -r requirements.lock.txt
       - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
