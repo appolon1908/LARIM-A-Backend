@@ -1,3 +1,5 @@
+import asyncio
+
 from celery import Celery
 
 from larimia.config import get_settings
@@ -19,9 +21,6 @@ celery_app.conf.update(
 @celery_app.task(name="larimia.ping")
 def ping() -> str:
     return "pong"
-
-
-import asyncio
 
 from larimia.workers.outbox import publish_batch
 
