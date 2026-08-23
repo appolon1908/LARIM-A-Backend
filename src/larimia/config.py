@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     release_version: str = "0.2.1"
     git_sha: str = "unknown"
     image_digest: str = "unknown"
-    migration_head: str = "0003"
+    migration_head: str = "0004"
 
     # Fail closed by default. High-risk capabilities must be enabled explicitly
     # after their adapter, authorization, reconciliation and operational gates pass.
