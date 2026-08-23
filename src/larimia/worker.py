@@ -1,4 +1,5 @@
 from celery import Celery
+
 from larimia.config import get_settings
 
 settings = get_settings()
@@ -14,12 +15,16 @@ celery_app.conf.update(
     task_reject_on_worker_lost=True,
 )
 
+
 @celery_app.task(name="larimia.ping")
 def ping() -> str:
     return "pong"
 
+
 import asyncio
+
 from larimia.workers.outbox import publish_batch
+
 
 @celery_app.task(name="larimia.publish_outbox")
 def publish_outbox() -> int:

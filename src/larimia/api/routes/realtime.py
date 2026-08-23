@@ -1,15 +1,20 @@
-import asyncio, json, uuid
-from datetime import datetime, timezone
+import asyncio
+import json
+import uuid
+from datetime import UTC, datetime
+
 import redis.asyncio as redis
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from sqlalchemy import select
-from larimia.config import get_settings
-from larimia.shared.auth import _principal_from_token, Role
-from larimia.shared.db import SessionLocal
+
 from larimia.bookings.infrastructure.models import Booking
+from larimia.config import get_settings
 from larimia.marketplace.models import Assignment, Customer, Provider
+from larimia.shared.auth import Role, _principal_from_token
+from larimia.shared.db import SessionLocal
 
 router = APIRouter()
+
 
 def authorized(principal, topic: str) -> bool:
     with SessionLocal() as db:
@@ -23,20 +28,29 @@ def authorized(principal, topic: str) -> bool:
                     or not principal.market_codes
                     or booking.market_code in principal.market_codes
                 )
-            customer = db.scalar(select(Customer).where(
-                Customer.identity_issuer == principal.issuer,
-                Customer.identity_subject == principal.subject,
-            ))
+            customer = db.scalar(
+                select(Customer).where(
+                    Customer.identity_issuer == principal.issuer,
+                    Customer.identity_subject == principal.subject,
+                )
+            )
             if customer and booking.customer_id == customer.id:
                 return True
-            provider = db.scalar(select(Provider).where(
-                Provider.identity_issuer == principal.issuer,
-                Provider.identity_subject == principal.subject,
-            ))
-            return bool(provider and db.scalar(select(Assignment.id).where(
-                Assignment.booking_id == booking.id,
-                Assignment.provider_id == provider.id,
-            )))
+            provider = db.scalar(
+                select(Provider).where(
+                    Provider.identity_issuer == principal.issuer,
+                    Provider.identity_subject == principal.subject,
+                )
+            )
+            return bool(
+                provider
+                and db.scalar(
+                    select(Assignment.id).where(
+                        Assignment.booking_id == booking.id,
+                        Assignment.provider_id == provider.id,
+                    )
+                )
+            )
         if topic.startswith("provider:"):
             provider = db.get(Provider, uuid.UUID(topic.split(":")[1]))
             return bool(
@@ -48,6 +62,7 @@ def authorized(principal, topic: str) -> bool:
         return topic == "ops:dispatch" and bool(
             principal.roles.intersection({Role.DISPATCHER, Role.SUPPORT, Role.PLATFORM_ADMIN})
         )
+
 
 async def stream(ws: WebSocket, topic: str):
     token = ws.query_params.get("access_token")
@@ -82,7 +97,7 @@ async def stream(ws: WebSocket, topic: str):
                     event = {"type": "system.raw", "data": {"payload": message["data"]}}
                 event.setdefault("id", str(uuid.uuid4()))
                 event.setdefault("version", 1)
-                event.setdefault("occurred_at", datetime.now(timezone.utc).isoformat())
+                event.setdefault("occurred_at", datetime.now(UTC).isoformat())
                 event["sequence"] = sequence
                 event.setdefault("aggregate_id", topic.split(":")[-1])
                 await asyncio.wait_for(ws.send_json(event), timeout=5)
@@ -91,20 +106,23 @@ async def stream(ws: WebSocket, topic: str):
                     ws.send_json({"type": "system.heartbeat", "sequence": sequence}),
                     timeout=5,
                 )
-    except (WebSocketDisconnect, asyncio.TimeoutError):
+    except (TimeoutError, WebSocketDisconnect):
         pass
     finally:
         await pubsub.unsubscribe(topic)
         await pubsub.aclose()
         await client.aclose()
 
+
 @router.websocket("/bookings/{booking_id}")
 async def booking(ws: WebSocket, booking_id: str):
     await stream(ws, f"booking:{booking_id}")
 
+
 @router.websocket("/providers/{provider_id}/offers")
 async def provider(ws: WebSocket, provider_id: str):
     await stream(ws, f"provider:{provider_id}:offers")
+
 
 @router.websocket("/ops/dispatch")
 async def ops(ws: WebSocket):

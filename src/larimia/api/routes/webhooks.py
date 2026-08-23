@@ -1,8 +1,13 @@
-import hashlib, hmac, json, time
-from datetime import datetime, timezone
+import hashlib
+import hmac
+import json
+import time
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+
 from larimia.config import get_settings
 from larimia.shared.db import get_db
 from larimia.shared.events import InboxReceipt
@@ -10,11 +15,13 @@ from larimia.shared.events import InboxReceipt
 router = APIRouter()
 ALLOWED = {"payments", "payouts", "identity", "background-checks", "sms", "email", "push"}
 
+
 def configured():
     try:
         return json.loads(get_settings().webhook_secrets_json)
     except Exception:
         return {}
+
 
 async def verify(request, family, provider, timestamp, signature, event_id):
     secret = configured().get(f"{family}:{provider}")
@@ -33,7 +40,9 @@ async def verify(request, family, provider, timestamp, signature, event_id):
         raise HTTPException(400, detail={"code": "INVALID_TIMESTAMP"})
     if abs(int(time.time()) - ts) > 300:
         raise HTTPException(400, detail={"code": "WEBHOOK_REPLAY_WINDOW"})
-    expected = hmac.new(secret.encode(), f"{timestamp}.".encode() + body, hashlib.sha256).hexdigest()
+    expected = hmac.new(
+        secret.encode(), f"{timestamp}.".encode() + body, hashlib.sha256
+    ).hexdigest()
     if not hmac.compare_digest(expected, signature.removeprefix("sha256=")):
         raise HTTPException(401, detail={"code": "INVALID_SIGNATURE"})
     try:
@@ -41,21 +50,27 @@ async def verify(request, family, provider, timestamp, signature, event_id):
     except json.JSONDecodeError:
         raise HTTPException(400, detail={"code": "INVALID_JSON"})
 
+
 async def ingest(request, family, provider, db, timestamp, signature, event_id):
     payload = await verify(request, family, provider, timestamp, signature, event_id)
-    existing = db.scalar(select(InboxReceipt).where(
-        InboxReceipt.provider == f"{family}:{provider}",
-        InboxReceipt.external_event_id == event_id
-    ))
+    existing = db.scalar(
+        select(InboxReceipt).where(
+            InboxReceipt.provider == f"{family}:{provider}",
+            InboxReceipt.external_event_id == event_id,
+        )
+    )
     if not existing:
-        db.add(InboxReceipt(
-            provider=f"{family}:{provider}",
-            external_event_id=event_id,
-            payload={"schema_version": 1, "data": payload},
-            received_at=datetime.now(timezone.utc),
-        ))
+        db.add(
+            InboxReceipt(
+                provider=f"{family}:{provider}",
+                external_event_id=event_id,
+                payload={"schema_version": 1, "data": payload},
+                received_at=datetime.now(UTC),
+            )
+        )
         db.commit()
     return Response(status_code=202)
+
 
 @router.post("/{family}/{provider}")
 async def generic(
@@ -68,6 +83,7 @@ async def generic(
     db: Session = Depends(get_db),
 ):
     return await ingest(request, family, provider, db, timestamp, signature, event_id)
+
 
 @router.post("/odoo")
 async def odoo(

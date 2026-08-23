@@ -1,6 +1,9 @@
 from enum import StrEnum
-from fastapi import Depends, HTTPException
+
+from fastapi import HTTPException
+
 from larimia.config import get_settings
+
 
 class Capability(StrEnum):
     REQUEST_INTAKE = "request_intake"
@@ -16,9 +19,11 @@ class Capability(StrEnum):
     MEMBERSHIPS = "memberships"
     PARTNERS = "partners"
 
+
 def enabled_capabilities() -> set[str]:
     settings = get_settings()
     return {x.strip() for x in settings.enabled_capabilities.split(",") if x.strip()}
+
 
 def require_capability(capability: Capability):
     def dependency() -> None:
@@ -27,4 +32,5 @@ def require_capability(capability: Capability):
                 status_code=503,
                 detail={"code": "CAPABILITY_DISABLED", "capability": capability.value},
             )
+
     return dependency

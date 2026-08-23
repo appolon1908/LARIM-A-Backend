@@ -1,11 +1,14 @@
 from dataclasses import dataclass
 from enum import StrEnum
 from functools import lru_cache
+
 import httpx
 import jwt
-from jwt import PyJWK, PyJWTError
 from fastapi import Depends, Header, HTTPException, status
+from jwt import PyJWK, PyJWTError
+
 from larimia.config import get_settings
+
 
 class Role(StrEnum):
     CUSTOMER = "customer"
@@ -20,6 +23,7 @@ class Role(StrEnum):
     PARTNER_BOOKER = "partner_booker"
     PLATFORM_ADMIN = "platform_admin"
 
+
 @dataclass(frozen=True)
 class Principal:
     subject: str
@@ -28,11 +32,13 @@ class Principal:
     organization_id: str | None = None
     market_codes: frozenset[str] = frozenset()
 
+
 @lru_cache(maxsize=4)
 def _jwks(url: str) -> dict:
     response = httpx.get(url, timeout=5.0)
     response.raise_for_status()
     return response.json()
+
 
 def _principal_from_token(token: str) -> Principal:
     settings = get_settings()
@@ -64,8 +70,10 @@ def _principal_from_token(token: str) -> Principal:
     roles = set()
     raw_roles = claims.get("roles", []) or claims.get("realm_access", {}).get("roles", [])
     for raw in raw_roles:
-        try: roles.add(Role(raw))
-        except ValueError: pass
+        try:
+            roles.add(Role(raw))
+        except ValueError:
+            pass
 
     return Principal(
         subject=str(claims["sub"]),
@@ -74,6 +82,7 @@ def _principal_from_token(token: str) -> Principal:
         organization_id=claims.get("org_id"),
         market_codes=frozenset(claims.get("markets", [])),
     )
+
 
 def get_principal(
     authorization: str | None = Header(default=None, alias="Authorization"),
@@ -90,18 +99,24 @@ def get_principal(
         raise HTTPException(status_code=500, detail={"code": "UNSAFE_AUTH_CONFIGURATION"})
 
     if not x_demo_subject:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail={"code": "AUTH_REQUIRED"})
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail={"code": "AUTH_REQUIRED"}
+        )
     parsed: set[Role] = set()
     for raw in (x_demo_roles or "").split(","):
         raw = raw.strip()
         if raw:
-            try: parsed.add(Role(raw))
-            except ValueError: pass
+            try:
+                parsed.add(Role(raw))
+            except ValueError:
+                pass
     return Principal(subject=x_demo_subject, issuer="demo", roles=frozenset(parsed))
+
 
 def require_roles(*allowed: Role):
     def dependency(principal: Principal = Depends(get_principal)) -> Principal:
         if Role.PLATFORM_ADMIN in principal.roles or principal.roles.intersection(allowed):
             return principal
         raise HTTPException(status_code=403, detail={"code": "FORBIDDEN"})
+
     return dependency

@@ -1,10 +1,11 @@
 import uuid
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import ORJSONResponse
 
-from larimia.config import get_settings
 from larimia.api.router import api_router
+from larimia.config import get_settings
 from larimia.shared.errors import DomainError
 
 settings = get_settings()
@@ -21,8 +22,17 @@ app.add_middleware(
     allow_origins=settings.cors_origin_list,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "If-Match", "X-Request-Id", "X-Demo-Subject", "X-Demo-Roles"],
+    allow_headers=[
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "If-Match",
+        "X-Request-Id",
+        "X-Demo-Subject",
+        "X-Demo-Roles",
+    ],
 )
+
 
 @app.middleware("http")
 async def request_context(request: Request, call_next):
@@ -38,8 +48,11 @@ async def request_context(request: Request, call_next):
 async def domain_error_handler(request: Request, exc: DomainError):
     return ORJSONResponse(
         status_code=exc.http_status,
-        content={"error": {"code": exc.code, "message": exc.message}, "request_id": request.headers.get("X-Request-Id")},
+        content={
+            "error": {"code": exc.code, "message": exc.message},
+            "request_id": request.headers.get("X-Request-Id"),
+        },
     )
 
-app.include_router(api_router, prefix="/v1")
 
+app.include_router(api_router, prefix="/v1")
