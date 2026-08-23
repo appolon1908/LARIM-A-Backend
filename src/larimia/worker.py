@@ -17,3 +17,10 @@ celery_app.conf.update(
 @celery_app.task(name="larimia.ping")
 def ping() -> str:
     return "pong"
+
+import asyncio
+from larimia.workers.outbox import publish_batch
+
+@celery_app.task(name="larimia.publish_outbox")
+def publish_outbox() -> int:
+    return asyncio.run(publish_batch())

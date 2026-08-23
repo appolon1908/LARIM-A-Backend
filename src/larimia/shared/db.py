@@ -1,7 +1,10 @@
 from collections.abc import Generator
+
 from sqlalchemy import MetaData, create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+
 from larimia.config import get_settings
+
 
 NAMING_CONVENTION = {
     "ix": "ix_%(column_0_label)s",
@@ -11,16 +14,30 @@ NAMING_CONVENTION = {
     "pk": "pk_%(table_name)s",
 }
 
+
 class Base(DeclarativeBase):
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
 
-settings = get_settings()
-engine = create_engine(settings.database_url, pool_pre_ping=True)
-SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
-def get_db() -> Generator[Session, None, None]:
+settings = get_settings()
+engine = create_engine(
+    settings.database_url,
+    pool_pre_ping=True,
+    pool_recycle=1_800,
+)
+SessionLocal = sessionmaker(
+    bind=engine,
+    autoflush=False,
+    expire_on_commit=False,
+)
+
+
+def get_db() -> Generator[Session]:
     db = SessionLocal()
     try:
         yield db
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()

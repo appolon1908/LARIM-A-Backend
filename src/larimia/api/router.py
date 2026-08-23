@@ -18,6 +18,7 @@ from larimia.api.routes.markets import router as markets
 from larimia.api.routes.webhooks import router as webhooks
 from larimia.bookings.api.routes import router as bookings
 from larimia.api.routes.system import router as system
+from larimia.api.routes.customers import router as customers
 
 api_router = APIRouter()
 api_router.include_router(health, prefix="/health", tags=["health"])
@@ -40,3 +41,5 @@ api_router.include_router(finance, prefix="/finance", tags=["finance"])
 api_router.include_router(webhooks, prefix="/webhooks", tags=["webhooks"])
 
 api_router.include_router(system, prefix="/system", tags=["system"])
+
+api_router.include_router(customers, prefix="/customers", tags=["customers"])
