@@ -37,7 +37,7 @@ async def verify(request, family, provider, timestamp, signature, event_id):
     try:
         ts = int(timestamp)
     except ValueError:
-        raise HTTPException(400, detail={"code": "INVALID_TIMESTAMP"})
+        raise HTTPException(400, detail={"code": "INVALID_TIMESTAMP"}) from None
     if abs(int(time.time()) - ts) > 300:
         raise HTTPException(400, detail={"code": "WEBHOOK_REPLAY_WINDOW"})
     expected = hmac.new(
@@ -48,7 +48,7 @@ async def verify(request, family, provider, timestamp, signature, event_id):
     try:
         return json.loads(body)
     except json.JSONDecodeError:
-        raise HTTPException(400, detail={"code": "INVALID_JSON"})
+        raise HTTPException(400, detail={"code": "INVALID_JSON"}) from None
 
 
 async def ingest(request, family, provider, db, timestamp, signature, event_id):
