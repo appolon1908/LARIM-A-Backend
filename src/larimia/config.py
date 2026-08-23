@@ -46,6 +46,11 @@ class Settings(BaseSettings):
     websocket_redis_url: str = ""
     max_webhook_bytes: int = 1_048_576
 
+    release_version: str = "0.2.1"
+    git_sha: str = "unknown"
+    image_digest: str = "unknown"
+    migration_head: str = "0003"
+
     # Fail closed by default. High-risk capabilities must be enabled explicitly
     # after their adapter, authorization, reconciliation and operational gates pass.
     enabled_capabilities: str = "request_intake,quotes"
@@ -110,6 +115,13 @@ class Settings(BaseSettings):
             raise ValueError("Payments cannot be enabled without a production payment provider")
         if "payouts" in capabilities and self.payout_provider_code in {"sandbox", "disabled", ""}:
             raise ValueError("Payouts cannot be enabled without a production payout provider")
+
+        if self.git_sha in {"", "unknown"}:
+            raise ValueError("Production requires immutable LARIMIA_GIT_SHA")
+        if self.image_digest in {"", "unknown"}:
+            raise ValueError("Production requires immutable LARIMIA_IMAGE_DIGEST")
+        if not self.migration_head.strip():
+            raise ValueError("Production requires LARIMIA_MIGRATION_HEAD")
 
         return self
 
