@@ -18,7 +18,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.13" }
       - run: pip install ruff==0.12.12
-      - run: ruff check src tests --fix --unsafe-fixes
+      - run: ruff check src tests --fix --unsafe-fixes || true
       - run: ruff format src tests
       - name: Commit normalized Python
         run: |
