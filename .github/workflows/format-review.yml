@@ -1,0 +1,32 @@
+name: format-review-candidate
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.head_ref == 'feat/marketplace-production-core'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.13" }
+      - run: pip install ruff==0.12.12
+      - run: ruff check src tests --fix --unsafe-fixes
+      - run: ruff format src tests
+      - name: Commit normalized Python
+        run: |
+          if git diff --quiet -- src tests; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src tests
+          git commit -m "style: normalize backend Python"
+          git push origin HEAD:${{ github.head_ref }}
