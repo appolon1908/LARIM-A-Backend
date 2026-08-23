@@ -1,0 +1,1 @@
+"""LARIMÍA support domain."""

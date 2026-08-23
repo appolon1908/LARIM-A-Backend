@@ -1,0 +1,1 @@
+"""LARIMÍA reviews domain."""

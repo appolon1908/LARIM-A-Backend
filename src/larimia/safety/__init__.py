@@ -1,0 +1,1 @@
+"""LARIMÍA safety domain."""

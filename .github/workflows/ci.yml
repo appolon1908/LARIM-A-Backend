@@ -1,0 +1,33 @@
+name: backend-ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:18-3.6
+        env:
+          POSTGRES_DB: larimia
+          POSTGRES_USER: larimia
+          POSTGRES_PASSWORD: larimia
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U larimia -d larimia"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      LARIMIA_DATABASE_URL: postgresql+psycopg://larimia:larimia@localhost:5432/larimia
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install uv
+      - run: uv pip install --system -e ".[dev]"
+      - run: ruff check src tests
+      - run: pytest -q

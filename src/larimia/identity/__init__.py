@@ -1,0 +1,1 @@
+"""LARIMÍA identity domain."""

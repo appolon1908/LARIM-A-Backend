@@ -1,0 +1,1 @@
+"""LARIMÍA dispatch domain."""

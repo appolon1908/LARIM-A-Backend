@@ -1,0 +1,1 @@
+"""LARIMÍA catalog domain."""

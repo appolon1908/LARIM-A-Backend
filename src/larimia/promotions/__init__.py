@@ -1,0 +1,1 @@
+"""LARIMÍA promotions domain."""

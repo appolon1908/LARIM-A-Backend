@@ -1,0 +1,43 @@
+services:
+  api:
+    build: .
+    env_file: .env
+    ports: ["8000:8000"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      rabbitmq:
+        condition: service_started
+
+  worker:
+    build: .
+    env_file: .env
+    command: celery -A larimia.worker.celery_app worker --loglevel=INFO
+    depends_on: [postgres, redis, rabbitmq]
+
+  postgres:
+    image: postgis/postgis:18-3.6
+    environment:
+      POSTGRES_DB: larimia
+      POSTGRES_USER: larimia
+      POSTGRES_PASSWORD: larimia
+    ports: ["5432:5432"]
+    volumes: [larimia_pg:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U larimia -d larimia"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:8-alpine
+    ports: ["6379:6379"]
+
+  rabbitmq:
+    image: rabbitmq:4-management
+    ports: ["5672:5672", "15672:15672"]
+
+volumes:
+  larimia_pg:

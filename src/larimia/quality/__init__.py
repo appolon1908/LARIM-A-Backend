@@ -1,0 +1,1 @@
+"""LARIMÍA quality domain."""

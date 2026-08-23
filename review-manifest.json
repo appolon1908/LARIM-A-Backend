@@ -1,0 +1,23 @@
+{
+  "status": "REVIEW_CANDIDATE",
+  "backend_python_syntax": true,
+  "backend_files": 102,
+  "review_archive_entries": 176,
+  "excluded_generated_files": 75,
+  "frontend_files": 54,
+  "migration_head": "0002",
+  "auth": "OIDC/JWKS path implemented; environment configuration required",
+  "idempotency": "persistent schema/service foundation implemented",
+  "outbox": "schema/foundation implemented",
+  "inbox": "schema/foundation implemented",
+  "websockets": [
+    "booking",
+    "provider offers",
+    "ops dispatch"
+  ],
+  "blockers": [
+    "real provider credentials/configuration",
+    "full DB-backed dispatch",
+    "full E2E/security/load/restore certification"
+  ]
+}

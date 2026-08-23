@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: larimia-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels: { app: larimia-api }
+  template:
+    metadata:
+      labels: { app: larimia-api }
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/OWNER/larimia-backend:IMAGE_DIGEST
+          ports: [{ containerPort: 8000 }]
+          readinessProbe:
+            httpGet: { path: /v1/health/ready, port: 8000 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /v1/health/live, port: 8000 }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests: { cpu: "250m", memory: "256Mi" }
+            limits: { cpu: "1", memory: "1Gi" }

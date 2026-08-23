@@ -1,0 +1,16 @@
+from enum import StrEnum
+
+class BookingStatus(StrEnum):
+    DRAFT = "DRAFT"
+    QUOTED = "QUOTED"
+    CONFIRMED = "CONFIRMED"
+    MATCHING = "MATCHING"
+    ASSIGNED = "ASSIGNED"
+    EN_ROUTE = "EN_ROUTE"
+    ARRIVED = "ARRIVED"
+    IN_SERVICE = "IN_SERVICE"
+    COMPLETED = "COMPLETED"
+    SETTLING = "SETTLING"
+    SETTLED = "SETTLED"
+    CANCELLED = "CANCELLED"
+    DISPUTED = "DISPUTED"

@@ -1,0 +1,1 @@
+"""LARIMÍA inventory domain."""
