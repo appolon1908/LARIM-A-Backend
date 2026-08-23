@@ -34,11 +34,13 @@ jobs:
         with: { python-version: "3.13" }
       - run: pip install uv
       - run: uv pip install --system -e ".[dev]"
-      - run: ruff check src tests
+      - run: ruff check src tests scripts
+      - run: alembic heads
       - run: alembic upgrade head
+      - run: alembic current
       - run: pytest -q
+      - run: python scripts/validate_openapi.py
       - run: python scripts/export_openapi.py
-      - run: git diff --exit-code -- openapi.generated.json
       - run: alembic downgrade 0002
       - run: alembic upgrade head
-      - run: python -m compileall -q src
+      - run: python -m compileall -q src scripts
