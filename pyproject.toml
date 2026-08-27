@@ -1,6 +1,6 @@
 [project]
 name = "larimia-backend"
-version = "0.2.1"
+version = "0.3.0"
 description = "Production-oriented LARIMÍA marketplace backend"
 requires-python = ">=3.13,<3.15"
 dependencies = [
@@ -49,9 +49,8 @@ testpaths = ["tests"]
 line-length = 100
 target-version = "py313"
 
-# The branch still contains legacy compact formatting. Keep CI focused on
-# correctness/undefined-name failures while the formatter cleanup is done in
-# reviewable slices instead of hiding functional failures behind hundreds of
-# style-only diagnostics.
+# The repository still contains legacy compact formatting. Functional commits
+# remain gated on syntax and undefined-name failures while formatting is moved
+# into isolated reviewable changes.
 [tool.ruff.lint]
 select = ["E9", "F"]

@@ -13,6 +13,7 @@ from larimia.shared.idempotency_models import IdempotencyRecord
 
 
 IDEMPOTENCY_TTL = timedelta(hours=24)
+PROCESSING_LEASE = timedelta(minutes=5)
 
 
 def request_hash(payload: object) -> str:
@@ -46,6 +47,14 @@ def _load_locked(
     return row
 
 
+def _begin_processing(row: IdempotencyRecord, now: datetime) -> None:
+    row.status = "PROCESSING"
+    row.response_json = None
+    row.last_error = None
+    row.updated_at = now
+    row.locked_until = now + PROCESSING_LEASE
+
+
 def reserve(
     db: Session,
     *,
@@ -68,6 +77,8 @@ def reserve(
             request_hash=digest,
             status="PROCESSING",
             created_at=now,
+            updated_at=now,
+            locked_until=now + PROCESSING_LEASE,
             expires_at=now + IDEMPOTENCY_TTL,
         )
         .on_conflict_do_nothing(
@@ -96,10 +107,9 @@ def reserve(
         )
 
     if row.expires_at <= now:
-        row.status = "PROCESSING"
-        row.response_json = None
         row.created_at = now
         row.expires_at = now + IDEMPOTENCY_TTL
+        _begin_processing(row, now)
         db.flush()
         return row, None
 
@@ -107,33 +117,53 @@ def reserve(
         return row, json.loads(row.response_json)
 
     if row.status == "PROCESSING":
-        raise ConflictError(
-            "IDEMPOTENCY_IN_PROGRESS",
-            "Request with this idempotency key is already processing",
-        )
+        if row.locked_until is not None and row.locked_until > now:
+            raise ConflictError(
+                "IDEMPOTENCY_IN_PROGRESS",
+                "Request with this idempotency key is already processing",
+            )
+        # A crashed worker may leave PROCESSING behind. The finite lease lets an
+        # exact retry safely take ownership after the previous attempt is stale.
+        _begin_processing(row, now)
+        db.flush()
+        return row, None
 
     # FAILED reservations may be retried with the same payload/key.
-    row.status = "PROCESSING"
-    row.response_json = None
+    _begin_processing(row, now)
     db.flush()
     return row, None
 
 
-def complete(db: Session, row: IdempotencyRecord, response: dict[str, Any]) -> None:
+def complete(
+    db: Session,
+    row: IdempotencyRecord,
+    response: dict[str, Any],
+) -> None:
     row.status = "COMPLETED"
     row.response_json = json.dumps(
         response,
         separators=(",", ":"),
         default=str,
     )
+    row.last_error = None
+    row.updated_at = datetime.now(UTC)
+    row.locked_until = None
     db.flush()
 
 
-def fail(db: Session, row: IdempotencyRecord, error: dict[str, Any]) -> None:
-    row.status = "FAILED"
-    row.response_json = json.dumps(
+def fail(
+    db: Session,
+    row: IdempotencyRecord,
+    error: dict[str, Any],
+) -> None:
+    encoded = json.dumps(
         error,
         separators=(",", ":"),
         default=str,
     )
+    row.status = "FAILED"
+    row.response_json = encoded
+    row.last_error = encoded[:2_000]
+    row.updated_at = datetime.now(UTC)
+    row.locked_until = None
     db.flush()

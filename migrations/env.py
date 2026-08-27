@@ -10,6 +10,7 @@ from larimia.ledger.infrastructure_models import (  # noqa: F401
     LedgerTransaction,
 )
 from larimia.marketplace import models as marketplace_models  # noqa: F401
+from larimia.marketplace.capacity import CapacityHold  # noqa: F401
 from larimia.shared.audit import AuditEvent  # noqa: F401
 from larimia.shared.db import Base
 from larimia.shared.events import InboxReceipt, OutboxEvent  # noqa: F401
