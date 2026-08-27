@@ -25,8 +25,12 @@ class AcceptOffer(BaseModel):
     booking_version: int = Field(ge=1)
 
 
-def _offer_response(offer: DispatchOffer) -> dict:
-    return {
+def _offer_response(
+    offer: DispatchOffer,
+    *,
+    booking_version: int | None = None,
+) -> dict:
+    value = {
         "id": str(offer.id),
         "booking_id": str(offer.booking_id),
         "provider_id": str(offer.provider_id),
@@ -35,6 +39,9 @@ def _offer_response(offer: DispatchOffer) -> dict:
         "expires_at": offer.expires_at.isoformat(),
         "status": offer.status,
     }
+    if booking_version is not None:
+        value["booking_version"] = booking_version
+    return value
 
 
 @router.post("/ops/bookings/{booking_id}/offers")
@@ -74,7 +81,12 @@ def create_offers(
         booking=booking,
         service_id=line.service_id,
     )
-    result = {"items": [_offer_response(offer) for offer in offers]}
+    result = {
+        "items": [
+            _offer_response(offer, booking_version=booking.version)
+            for offer in offers
+        ]
+    }
     complete(db, idem, result)
     db.commit()
     return result
@@ -96,7 +108,26 @@ def list_provider_offers(
             .order_by(DispatchOffer.expires_at)
         )
     )
-    return {"items": [_offer_response(row) for row in rows]}
+    booking_versions: dict[uuid.UUID, int] = {}
+    booking_ids = {row.booking_id for row in rows}
+    if booking_ids:
+        booking_versions = {
+            booking_id: version
+            for booking_id, version in db.execute(
+                select(Booking.id, Booking.version).where(
+                    Booking.id.in_(booking_ids)
+                )
+            ).all()
+        }
+    return {
+        "items": [
+            _offer_response(
+                row,
+                booking_version=booking_versions.get(row.booking_id),
+            )
+            for row in rows
+        ]
+    }
 
 
 @router.post("/offers/{offer_id}/accept")
@@ -174,7 +205,9 @@ def decline_offer(
 
 @router.get("/ops/board")
 def dispatch_board(
-    principal: Principal = Depends(require_roles(Role.DISPATCHER, Role.SUPPORT)),
+    principal: Principal = Depends(
+        require_roles(Role.DISPATCHER, Role.SUPPORT)
+    ),
     db: Session = Depends(get_db),
 ):
     rows = list(
@@ -196,7 +229,9 @@ def dispatch_board(
         )
     )
     if principal.market_codes and Role.PLATFORM_ADMIN not in principal.roles:
-        rows = [row for row in rows if row.market_code in principal.market_codes]
+        rows = [
+            row for row in rows if row.market_code in principal.market_codes
+        ]
 
     return {
         "items": [
@@ -206,6 +241,10 @@ def dispatch_board(
                 "market_code": booking.market_code,
                 "status": booking.status.value,
                 "scheduled_start": booking.scheduled_start.isoformat(),
+                "scheduled_end": booking.scheduled_end.isoformat(),
+                "currency": booking.currency,
+                "customer_total_minor": booking.customer_total_minor,
+                "customer_id": str(booking.customer_id),
                 "version": booking.version,
             }
             for booking in rows
