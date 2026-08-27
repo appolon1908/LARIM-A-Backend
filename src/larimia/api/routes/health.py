@@ -1,3 +1,4 @@
+import redis
 from fastapi import APIRouter, Depends
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -16,7 +17,17 @@ def live() -> dict[str, str]:
 
 @router.get("/ready")
 def ready(db: Session = Depends(get_db)) -> dict[str, str]:
+    settings = get_settings()
     db.execute(text("SELECT 1"))
+    client = redis.Redis.from_url(
+        settings.redis_url,
+        socket_connect_timeout=1,
+        socket_timeout=1,
+    )
+    try:
+        client.ping()
+    finally:
+        client.close()
     return {"status": "ready"}
 
 

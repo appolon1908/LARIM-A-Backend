@@ -21,18 +21,22 @@ def topics(event: OutboxEvent) -> list[str]:
         output.extend([f"booking:{event.aggregate_id}", "ops:dispatch"])
 
     provider_id = (
-        event.payload.get("provider_id") if isinstance(event.payload, dict) else None
+        event.payload.get("provider_id")
+        if isinstance(event.payload, dict)
+        else None
     )
     if provider_id:
         output.append(f"provider:{provider_id}:offers")
-
     return sorted(set(output))
+
+
+def stream_key(topic: str) -> str:
+    return f"realtime:{topic}"
 
 
 def _claim(limit: int) -> list[tuple[uuid.UUID, str]]:
     now = datetime.now(UTC)
     claimed: list[tuple[uuid.UUID, str]] = []
-
     with SessionLocal() as db:
         rows = list(
             db.scalars(
@@ -62,7 +66,6 @@ def _claim(limit: int) -> list[tuple[uuid.UUID, str]]:
             event.attempts += 1
             claimed.append((event.id, token))
         db.commit()
-
     return claimed
 
 
@@ -94,7 +97,6 @@ def _mark_published(event_id: uuid.UUID, token: str) -> bool:
         )
         if event is None:
             return False
-
         event.status = "PUBLISHED"
         event.published_at = datetime.now(UTC)
         event.lock_token = None
@@ -119,7 +121,6 @@ def _mark_failed(event_id: uuid.UUID, token: str, error: Exception) -> bool:
         )
         if event is None:
             return False
-
         event.lock_token = None
         event.locked_until = None
         event.last_error = f"{type(error).__name__}: {str(error)[:500]}"
@@ -131,21 +132,23 @@ def _mark_failed(event_id: uuid.UUID, token: str, error: Exception) -> bool:
             backoff = min(2 ** min(event.attempts, 10), MAX_BACKOFF_SECONDS)
             event.status = "RETRY"
             event.next_attempt_at = now + timedelta(seconds=backoff)
-
         db.commit()
         return True
 
 
 async def publish_batch(limit: int = 100) -> int:
-    url = get_settings().websocket_redis_url
-    if not url:
+    settings = get_settings()
+    if not settings.websocket_redis_url:
         return 0
 
     claims = _claim(limit)
     if not claims:
         return 0
 
-    client = redis.from_url(url, decode_responses=True)
+    client = redis.from_url(
+        settings.websocket_redis_url,
+        decode_responses=True,
+    )
     published = 0
     try:
         for event_id, token in claims:
@@ -161,16 +164,23 @@ async def publish_batch(limit: int = 100) -> int:
                 "aggregate_id": event.aggregate_id,
                 "data": event.payload,
             }
-
             try:
-                encoded = json.dumps(envelope, default=str, separators=(",", ":"))
+                encoded = json.dumps(
+                    envelope,
+                    default=str,
+                    separators=(",", ":"),
+                )
                 for topic in topics(event):
-                    await client.publish(topic, encoded)
+                    await client.xadd(
+                        stream_key(topic),
+                        {"event": encoded},
+                        maxlen=settings.realtime_stream_maxlen,
+                        approximate=True,
+                    )
                 if _mark_published(event_id, token):
                     published += 1
             except Exception as exc:
                 _mark_failed(event_id, token, exc)
     finally:
         await client.aclose()
-
     return published

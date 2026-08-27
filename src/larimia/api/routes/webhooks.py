@@ -1,10 +1,12 @@
 import hashlib
 import hmac
 import json
+import re
 import time
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -24,6 +26,7 @@ ALLOWED_FAMILIES = {
     "push",
 }
 WEBHOOK_REPLAY_WINDOW_SECONDS = 300
+PROVIDER_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 
 
 def _configured_secrets() -> dict[str, str | list[str]]:
@@ -79,14 +82,19 @@ async def _verify(
     signature: str | None,
     event_id: str | None,
 ) -> tuple[dict, str]:
-    if family not in ALLOWED_FAMILIES:
+    if family not in ALLOWED_FAMILIES or not PROVIDER_PATTERN.fullmatch(provider):
         raise HTTPException(404, detail={"code": "WEBHOOK_PROVIDER_NOT_CONFIGURED"})
 
     secrets = _provider_secrets(family, provider)
     if not secrets:
         raise HTTPException(404, detail={"code": "WEBHOOK_PROVIDER_NOT_CONFIGURED"})
 
-    content_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+    content_type = (
+        request.headers.get("content-type", "")
+        .split(";", 1)[0]
+        .strip()
+        .lower()
+    )
     if content_type != "application/json":
         raise HTTPException(415, detail={"code": "CONTENT_TYPE_REQUIRED"})
 
@@ -121,7 +129,6 @@ async def _verify(
         raise HTTPException(400, detail={"code": "INVALID_JSON"}) from exc
     if not isinstance(payload, dict):
         raise HTTPException(422, detail={"code": "WEBHOOK_PAYLOAD_INVALID"})
-
     return payload, hashlib.sha256(body).hexdigest()
 
 
@@ -143,8 +150,7 @@ async def _ingest(
         event_id,
     )
     provider_key = f"{family}:{provider}"
-
-    db.execute(
+    inserted_id = db.scalar(
         insert(InboxReceipt)
         .values(
             provider=provider_key,
@@ -158,7 +164,27 @@ async def _ingest(
         .on_conflict_do_nothing(
             index_elements=["provider", "external_event_id"]
         )
+        .returning(InboxReceipt.id)
     )
+    if inserted_id is None:
+        existing = db.scalar(
+            select(InboxReceipt).where(
+                InboxReceipt.provider == provider_key,
+                InboxReceipt.external_event_id == event_id,
+            )
+        )
+        existing_body_sha256 = existing.body_sha256 if existing is not None else None
+        db.rollback()
+        if existing_body_sha256 is not None and existing_body_sha256 != body_sha256:
+            raise HTTPException(
+                409,
+                detail={"code": "WEBHOOK_EVENT_ID_COLLISION"},
+            )
+        return Response(
+            status_code=200,
+            headers={"X-Webhook-Duplicate": "true"},
+        )
+
     db.commit()
     return Response(status_code=202)
 
