@@ -1,20 +1,19 @@
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: batch/v1
+kind: Job
 metadata:
-  name: larimia-api
+  name: larimia-migrate
   labels:
-    app.kubernetes.io/name: larimia-api
+    app.kubernetes.io/name: larimia-migrate
 spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: larimia-api
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 86400
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: larimia-api
+        app.kubernetes.io/name: larimia-migrate
         app.kubernetes.io/part-of: larimia
     spec:
+      restartPolicy: Never
       serviceAccountName: larimia
       automountServiceAccountToken: false
       securityContext:
@@ -25,40 +24,21 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       containers:
-        - name: api
+        - name: migrate
           image: ghcr.io/appolon1908-hue/larimia-backend@sha256:REPLACE_WITH_RELEASE_DIGEST
-          imagePullPolicy: IfNotPresent
-          ports:
-            - name: http
-              containerPort: 8000
+          command: ["alembic", "upgrade", "head"]
           envFrom:
             - configMapRef:
                 name: larimia-runtime
             - secretRef:
                 name: larimia-secrets
-          readinessProbe:
-            httpGet:
-              path: /v1/health/ready
-              port: http
-            initialDelaySeconds: 10
-            periodSeconds: 10
-            timeoutSeconds: 3
-            failureThreshold: 3
-          livenessProbe:
-            httpGet:
-              path: /v1/health/live
-              port: http
-            initialDelaySeconds: 10
-            periodSeconds: 20
-            timeoutSeconds: 3
-            failureThreshold: 3
           resources:
             requests:
-              cpu: 250m
-              memory: 256Mi
+              cpu: 100m
+              memory: 128Mi
             limits:
-              cpu: "1"
-              memory: 1Gi
+              cpu: 500m
+              memory: 512Mi
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

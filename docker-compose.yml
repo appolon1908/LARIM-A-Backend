@@ -1,43 +1,110 @@
+x-app: &app
+  build: .
+  env_file: .env
+  restart: unless-stopped
+  read_only: true
+  tmpfs:
+    - /tmp:size=64m,mode=1777
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  stop_grace_period: 30s
+  networks:
+    - larimia_private
+
 services:
   api:
-    build: .
-    env_file: .env
-    ports: ["8000:8000"]
+    <<: *app
+    ports:
+      - "127.0.0.1:8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
       rabbitmq:
-        condition: service_started
+        condition: service_healthy
 
   worker:
-    build: .
-    env_file: .env
+    <<: *app
     command: celery -A larimia.worker.celery_app worker --loglevel=INFO
-    depends_on: [postgres, redis, rabbitmq]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  scheduler:
+    <<: *app
+    command: celery -A larimia.worker.celery_app beat --loglevel=INFO
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
 
   postgres:
     image: postgis/postgis:18-3.6
+    restart: unless-stopped
     environment:
       POSTGRES_DB: larimia
       POSTGRES_USER: larimia
-      POSTGRES_PASSWORD: larimia
-    ports: ["5432:5432"]
-    volumes: [larimia_pg:/var/lib/postgresql/data]
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-larimia}
+    volumes:
+      - larimia_pg:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U larimia -d larimia"]
       interval: 5s
       timeout: 5s
       retries: 20
+    networks:
+      - larimia_private
 
   redis:
     image: redis:8-alpine
-    ports: ["6379:6379"]
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --maxmemory-policy
+      - noeviction
+    volumes:
+      - larimia_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - larimia_private
 
   rabbitmq:
     image: rabbitmq:4-management
-    ports: ["5672:5672", "15672:15672"]
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-larimia}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-larimia}
+    volumes:
+      - larimia_rabbitmq:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    networks:
+      - larimia_private
 
 volumes:
   larimia_pg:
+  larimia_redis:
+  larimia_rabbitmq:
+
+networks:
+  larimia_private:
+    driver: bridge

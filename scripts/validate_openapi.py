@@ -56,6 +56,7 @@ required_paths = {
     "/v1/bookings/{booking_id}/confirm",
     "/v1/bookings/{booking_id}/cancel",
     "/v1/payments/authorize",
+    "/v1/ws/tickets",
 }
 missing = sorted(required_paths.difference(paths))
 if missing:
