@@ -20,7 +20,7 @@ def production_settings(**overrides):
         "enabled_capabilities": "request_intake,quotes",
         "git_sha": "a" * 40,
         "image_digest": "sha256:" + "b" * 64,
-        "migration_head": "0004",
+        "migration_head": "0005",
     }
     values.update(overrides)
     return Settings(**values)
@@ -49,6 +49,11 @@ def test_production_rejects_wildcard_cors():
         production_settings(cors_origins="*")
 
 
+def test_production_rejects_unknown_capability():
+    with pytest.raises(ValidationError):
+        production_settings(enabled_capabilities="request_intake,not-real")
+
+
 def test_production_rejects_payments_with_sandbox_adapter():
     with pytest.raises(ValidationError):
         production_settings(
@@ -62,6 +67,8 @@ def test_production_requires_immutable_release_identity():
         production_settings(git_sha="unknown")
     with pytest.raises(ValidationError):
         production_settings(image_digest="unknown")
+    with pytest.raises(ValidationError):
+        production_settings(migration_head="0004")
 
 
 def test_valid_fail_closed_production_configuration():

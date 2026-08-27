@@ -2,9 +2,10 @@ import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from larimia.marketplace.capacity import CapacityService
 from larimia.marketplace.services import QuoteService
 from larimia.shared.auth import Principal, get_principal
 from larimia.shared.authorization import customer_for_principal, require_market
@@ -20,8 +21,8 @@ router = APIRouter(
 
 
 class QuoteRequest(BaseModel):
-    market_code: str
-    service_code: str
+    market_code: str = Field(min_length=1, max_length=16)
+    service_code: str = Field(min_length=1, max_length=80)
     address_id: uuid.UUID
     scheduled_start: datetime
 
@@ -51,6 +52,7 @@ def create_quote(
         customer=customer,
         **payload.model_dump(),
     )
+    hold = CapacityService.reserve_for_quote(db, quote)
     result = {
         "id": str(quote.id),
         "status": quote.status,
@@ -63,6 +65,12 @@ def create_quote(
         "scheduled_end": quote.scheduled_end.isoformat(),
         "expires_at": quote.expires_at.isoformat(),
         "price_policy_version": quote.price_policy_version,
+        "capacity_hold": {
+            "id": str(hold.id),
+            "status": hold.status,
+            "expires_at": hold.expires_at.isoformat(),
+            "version": hold.version,
+        },
     }
     complete(db, idem, result)
     db.commit()
