@@ -1,4 +1,4 @@
-from typing import Protocol
+from typing import Mapping, Protocol
 
 
 class IdentityProvider(Protocol):
@@ -47,6 +47,15 @@ class Geocoder(Protocol):
 class PaymentProvider(Protocol):
     code: str
 
+    async def create_checkout(
+        self,
+        *,
+        amount_minor: int,
+        currency: str,
+        idempotency_key: str,
+        reference: dict,
+    ) -> dict: ...
+
     async def authorize(
         self,
         *,
@@ -54,13 +63,23 @@ class PaymentProvider(Protocol):
         amount_minor: int,
         currency: str,
         idempotency_key: str,
+        reference: dict,
     ) -> dict: ...
 
     async def capture(
         self,
         *,
         external_id: str,
-        amount_minor: int | None = None,
+        amount_minor: int | None,
+        currency: str,
+        idempotency_key: str,
+    ) -> dict: ...
+
+    async def void(
+        self,
+        *,
+        external_id: str,
+        idempotency_key: str,
     ) -> dict: ...
 
     async def refund(
@@ -68,8 +87,19 @@ class PaymentProvider(Protocol):
         *,
         external_id: str,
         amount_minor: int,
+        currency: str,
         reason: str,
+        idempotency_key: str,
     ) -> dict: ...
+
+    async def verify_webhook(
+        self,
+        *,
+        headers: Mapping[str, str],
+        body: bytes,
+    ) -> dict: ...
+
+    def translate_webhook(self, payload: dict) -> dict: ...
 
 
 class PayoutProvider(Protocol):
