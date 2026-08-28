@@ -48,7 +48,7 @@ jobs:
       - run: uv pip install --system -e ".[dev]"
       - run: ruff check src tests scripts
       - name: Verify single migration head
-        run: test "$(alembic heads | awk '{print $1}')" = "0006"
+        run: test "$(alembic heads | awk '{print $1}')" = "0007"
       - run: alembic upgrade head
       - run: alembic current
       - run: pytest -q
@@ -57,7 +57,7 @@ jobs:
       - name: Verify migration round trip
         run: |
           set -euo pipefail
-          alembic downgrade 0005
+          alembic downgrade 0006
           alembic upgrade head
       - run: python -m compileall -q src scripts
       - run: docker build --pull --tag larimia-backend:ci .

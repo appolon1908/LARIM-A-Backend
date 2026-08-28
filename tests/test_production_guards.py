@@ -18,7 +18,7 @@ def production_settings(**overrides):
         "enabled_capabilities": "request_intake,quotes",
         "git_sha": "a" * 40,
         "image_digest": "sha256:" + "b" * 64,
-        "migration_head": "0006",
+        "migration_head": "0007",
     }
     values.update(overrides)
     return Settings(**values)
@@ -88,7 +88,7 @@ def test_production_requires_immutable_release_identity():
     with pytest.raises(ValidationError):
         production_settings(image_digest="unknown")
     with pytest.raises(ValidationError):
-        production_settings(migration_head="0005")
+        production_settings(migration_head="0006")
 
 
 def test_valid_fail_closed_production_configuration():

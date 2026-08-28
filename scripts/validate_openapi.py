@@ -23,6 +23,13 @@ duplicates = [operation_id for operation_id, count in Counter(operation_ids).ite
 if duplicates:
     raise SystemExit(f"Duplicate OpenAPI operationIds: {sorted(duplicates)}")
 required_paths = {
+    "/v1/partners/ops/organizations",
+    "/v1/partners/ops/booking-requests",
+    "/v1/partners/booking-requests",
+    "/v1/partners/me/organization",
+    "/v1/memberships/subscriptions/me",
+    "/v1/memberships/subscriptions",
+    "/v1/memberships/plans",
     "/v1/health/live",
     "/v1/health/ready",
     "/v1/health/version",

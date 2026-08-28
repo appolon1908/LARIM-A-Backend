@@ -85,7 +85,7 @@ class Settings(BaseSettings):
     release_version: str = "0.4.0"
     git_sha: str = "unknown"
     image_digest: str = "unknown"
-    migration_head: str = "0006"
+    migration_head: str = "0007"
 
     enabled_capabilities: str = "request_intake,quotes"
 
@@ -226,8 +226,8 @@ class Settings(BaseSettings):
             raise ValueError("Production requires immutable LARIMIA_GIT_SHA")
         if self.image_digest in {"", "unknown"}:
             raise ValueError("Production requires immutable LARIMIA_IMAGE_DIGEST")
-        if self.migration_head != "0006":
-            raise ValueError("Production requires migration head 0006")
+        if self.migration_head != "0007":
+            raise ValueError("Production requires migration head 0007")
         return self
 
 

@@ -2,6 +2,7 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 from larimia.bookings.infrastructure.models import Booking  # noqa: F401
+from larimia.commerce import models as commerce_models  # noqa: F401
 from larimia.config import get_settings
 from larimia.integrations.models import IntegrationStatus  # noqa: F401
 from larimia.ledger.infrastructure_models import (  # noqa: F401
