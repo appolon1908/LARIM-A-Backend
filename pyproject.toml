@@ -1,6 +1,6 @@
 [project]
 name = "larimia-backend"
-version = "0.3.0"
+version = "0.5.0"
 description = "Production-oriented LARIMÍA marketplace backend"
 requires-python = ">=3.13,<3.15"
 dependencies = [
@@ -49,8 +49,5 @@ testpaths = ["tests"]
 line-length = 100
 target-version = "py313"
 
-# The repository still contains legacy compact formatting. Functional commits
-# remain gated on syntax and undefined-name failures while formatting is moved
-# into isolated reviewable changes.
 [tool.ruff.lint]
 select = ["E9", "F"]

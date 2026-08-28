@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import select
 
+from larimia.finance.services import release_due_payables
 from larimia.marketplace.capacity import CapacityHold
 from larimia.marketplace.models import DispatchOffer, Quote
 from larimia.shared.db import SessionLocal
@@ -71,9 +72,12 @@ def expire_marketplace_state(limit: int = 500) -> dict[str, int]:
                 },
             )
             expired_offers += 1
+
+        released_payables = release_due_payables(db, limit=limit)
         db.commit()
 
     return {
         "expired_holds": expired_holds,
         "expired_offers": expired_offers,
+        "released_payables": released_payables,
     }

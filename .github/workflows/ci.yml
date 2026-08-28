@@ -1,13 +1,17 @@
 name: backend-ci
+
 on:
   pull_request:
   push:
     branches: [main]
+
 permissions:
   contents: read
+
 concurrency:
   group: backend-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
 jobs:
   verify:
     runs-on: ubuntu-24.04
@@ -29,6 +33,7 @@ jobs:
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 5s --health-timeout 5s --health-retries 30
+
     env:
       PYTHONHASHSEED: "0"
       LARIMIA_ENV: test
@@ -36,6 +41,7 @@ jobs:
       LARIMIA_DATABASE_URL: postgresql+psycopg://larimia:larimia@localhost:5432/larimia
       LARIMIA_REDIS_URL: redis://localhost:6379/0
       LARIMIA_WEBSOCKET_REDIS_URL: redis://localhost:6379/1
+
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -48,7 +54,7 @@ jobs:
       - run: uv pip install --system -e ".[dev]"
       - run: ruff check src tests scripts
       - name: Verify single migration head
-        run: test "$(alembic heads | awk '{print $1}')" = "0007"
+        run: test "$(alembic heads | awk '{print $1}')" = "0008"
       - run: alembic upgrade head
       - run: alembic current
       - run: pytest -q
@@ -57,7 +63,7 @@ jobs:
       - name: Verify migration round trip
         run: |
           set -euo pipefail
-          alembic downgrade 0006
+          alembic downgrade 0007
           alembic upgrade head
       - run: python -m compileall -q src scripts
       - run: docker build --pull --tag larimia-backend:ci .

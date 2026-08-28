@@ -11,14 +11,17 @@ def production_settings(**overrides):
         "env": "production",
         "auth_mode": "oidc",
         "oidc_issuer": "https://auth.codestra.co/realms/larimia",
-        "oidc_jwks_url": "https://auth.codestra.co/realms/larimia/protocol/openid-connect/certs",
+        "oidc_jwks_url": (
+            "https://auth.codestra.co/realms/larimia/"
+            "protocol/openid-connect/certs"
+        ),
         "oidc_audience": "larimia-api",
         "oidc_allowed_algorithms": "RS256",
         "cors_origins": "https://app.example.com",
         "enabled_capabilities": "request_intake,quotes",
         "git_sha": "a" * 40,
         "image_digest": "sha256:" + "b" * 64,
-        "migration_head": "0007",
+        "migration_head": "0008",
     }
     values.update(overrides)
     return Settings(**values)
@@ -31,7 +34,14 @@ def test_production_rejects_demo_auth():
 
 def test_production_rejects_noncanonical_identity_host():
     with pytest.raises(ValidationError):
-        production_settings(oidc_issuer="https://identity.example.org/realms/larimia", oidc_jwks_url="https://identity.example.org/jwks.json")
+        production_settings(
+            oidc_issuer=(
+                "https://identity.example.org/realms/larimia"
+            ),
+            oidc_jwks_url=(
+                "https://identity.example.org/jwks.json"
+            ),
+        )
 
 
 def test_production_rejects_symmetric_oidc_algorithms():
@@ -46,12 +56,18 @@ def test_production_rejects_wildcard_cors():
 
 def test_production_rejects_unknown_capability():
     with pytest.raises(ValidationError):
-        production_settings(enabled_capabilities="request_intake,not-real")
+        production_settings(
+            enabled_capabilities="request_intake,not-real"
+        )
 
 
 def test_production_rejects_payments_with_sandbox_adapter():
     with pytest.raises(ValidationError):
-        production_settings(enabled_capabilities="request_intake,quotes,payments", payment_provider_code="sandbox", payment_provider_codes="sandbox")
+        production_settings(
+            enabled_capabilities="request_intake,quotes,payments",
+            payment_provider_code="sandbox",
+            payment_provider_codes="sandbox",
+        )
 
 
 def test_production_accepts_complete_stripe_configuration():
@@ -76,10 +92,21 @@ def test_production_accepts_complete_paypal_configuration():
         paypal_client_secret="secret",
         paypal_webhook_id="WH-123",
         paypal_environment="live",
-        paypal_return_url="https://app.example.com/paypal/return",
-        paypal_cancel_url="https://app.example.com/paypal/cancel",
+        paypal_return_url=(
+            "https://app.example.com/paypal/return"
+        ),
+        paypal_cancel_url=(
+            "https://app.example.com/paypal/cancel"
+        ),
     )
     assert settings.payment_provider_set == {"paypal"}
+
+
+def test_finance_configuration_bounds_are_enforced():
+    with pytest.raises(ValidationError):
+        Settings(platform_fee_bps=10_001)
+    with pytest.raises(ValidationError):
+        Settings(provider_payable_hold_hours=721)
 
 
 def test_production_requires_immutable_release_identity():
@@ -88,17 +115,27 @@ def test_production_requires_immutable_release_identity():
     with pytest.raises(ValidationError):
         production_settings(image_digest="unknown")
     with pytest.raises(ValidationError):
-        production_settings(migration_head="0006")
+        production_settings(migration_head="0007")
 
 
 def test_valid_fail_closed_production_configuration():
     settings = production_settings()
     assert settings.auth_mode == "oidc"
-    assert settings.capability_set == {"request_intake", "quotes"}
+    assert settings.capability_set == {
+        "request_intake",
+        "quotes",
+    }
+    assert settings.payout_provider_code == "disabled"
 
 
 def test_payment_api_is_disabled_by_default():
     client = TestClient(app)
-    response = client.post("/v1/payments/authorize", json={})
+    response = client.post(
+        "/v1/payments/authorize",
+        json={},
+    )
     assert response.status_code == 503
-    assert response.json()["detail"]["code"] == "CAPABILITY_DISABLED"
+    assert (
+        response.json()["detail"]["code"]
+        == "CAPABILITY_DISABLED"
+    )

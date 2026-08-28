@@ -13,9 +13,12 @@ settings = get_settings()
 
 app = FastAPI(
     title="LARIMÍA API",
-    version="0.2.1",
+    version=settings.release_version,
     default_response_class=ORJSONResponse,
-    description="Production-oriented marketplace API for Customer, Pro and Operations.",
+    description=(
+        "Production-oriented marketplace API for Customer, Pro, "
+        "Partner, Finance and Operations."
+    ),
 )
 
 allowed_headers = [
@@ -46,8 +49,12 @@ async def request_context(request: Request, call_next):
     response.headers["X-Request-Id"] = request_id
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
-    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["Referrer-Policy"] = (
+        "strict-origin-when-cross-origin"
+    )
+    response.headers["Permissions-Policy"] = (
+        "camera=(), microphone=(), geolocation=()"
+    )
     return response
 
 
@@ -60,7 +67,9 @@ async def domain_error_handler(request: Request, exc: DomainError):
                 "code": exc.code,
                 "message": exc.message,
             },
-            "request_id": getattr(request.state, "request_id", None),
+            "request_id": getattr(
+                request.state, "request_id", None
+            ),
         },
     )
 
