@@ -32,6 +32,12 @@ def test_production_rejects_demo_auth():
         production_settings(auth_mode="demo")
 
 
+@pytest.mark.parametrize("field", ["env", "auth_mode"])
+def test_unknown_runtime_mode_is_rejected(field):
+    with pytest.raises(ValidationError):
+        Settings(**{field: "invalid-mode"})
+
+
 def test_production_rejects_noncanonical_identity_host():
     with pytest.raises(ValidationError):
         production_settings(

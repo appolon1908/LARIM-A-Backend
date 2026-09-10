@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Literal
 from urllib.parse import urlparse
 
 from pydantic import SecretStr, model_validator
@@ -41,8 +42,8 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    env: str = "development"
-    auth_mode: str = "demo"
+    env: Literal["development", "test", "staging", "production"] = "development"
+    auth_mode: Literal["demo", "oidc"] = "demo"
     database_url: str = (
         "postgresql+psycopg://larimia:larimia@localhost:5432/larimia"
     )
