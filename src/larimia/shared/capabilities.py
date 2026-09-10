@@ -1,6 +1,10 @@
+from collections.abc import Callable
 from enum import StrEnum
-from fastapi import Depends, HTTPException
+
+from fastapi import HTTPException
+
 from larimia.config import get_settings
+
 
 class Capability(StrEnum):
     REQUEST_INTAKE = "request_intake"
@@ -16,15 +20,29 @@ class Capability(StrEnum):
     MEMBERSHIPS = "memberships"
     PARTNERS = "partners"
 
-def enabled_capabilities() -> set[str]:
-    settings = get_settings()
-    return {x.strip() for x in settings.enabled_capabilities.split(",") if x.strip()}
 
-def require_capability(capability: Capability):
+def enabled_capabilities() -> set[str]:
+    return set(get_settings().capability_set)
+
+
+def capability_enabled(capability: Capability) -> bool:
+    return capability.value in enabled_capabilities()
+
+
+def ensure_capability(capability: Capability) -> None:
+    if capability_enabled(capability):
+        return
+    raise HTTPException(
+        status_code=503,
+        detail={
+            "code": "CAPABILITY_DISABLED",
+            "capability": capability.value,
+        },
+    )
+
+
+def require_capability(capability: Capability) -> Callable[[], None]:
     def dependency() -> None:
-        if capability.value not in enabled_capabilities():
-            raise HTTPException(
-                status_code=503,
-                detail={"code": "CAPABILITY_DISABLED", "capability": capability.value},
-            )
+        ensure_capability(capability)
+
     return dependency

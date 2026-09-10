@@ -1,44 +1,77 @@
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
+
+from larimia.marketplace.capacity import CapacityService
+from larimia.marketplace.services import QuoteService
+from larimia.shared.auth import Principal, get_principal
+from larimia.shared.authorization import customer_for_principal, require_market
+from larimia.shared.capabilities import Capability, require_capability
+from larimia.shared.db import get_db
 from larimia.shared.idempotency import require_idempotency_key
+from larimia.shared.idempotency_service import complete, reserve
 
-router = APIRouter()
 
-BASE_PRICES = {
-    "MASSAGE_60": 450000,
-    "HAIRCUT": 250000,
-    "MAKEUP": 400000,
-    "TRAINING_60": 300000,
-}
+router = APIRouter(
+    dependencies=[Depends(require_capability(Capability.QUOTES))],
+)
+
 
 class QuoteRequest(BaseModel):
-    market_code: str
-    currency: str = Field(pattern=r"^[A-Z]{3}$")
-    service_code: str
-    address_id: str
+    market_code: str = Field(min_length=1, max_length=16)
+    service_code: str = Field(min_length=1, max_length=80)
+    address_id: uuid.UUID
     scheduled_start: datetime
-    add_ons: list[str] = []
+
 
 @router.post("", status_code=201)
-def create_quote(payload: QuoteRequest, _: str = Depends(require_idempotency_key)):
-    base = BASE_PRICES.get(payload.service_code, 300000)
-    travel = 50000
-    subtotal = base + travel
-    tax = 0
-    total = subtotal + tax
-    return {
-        "id": str(uuid.uuid4()),
-        "market_code": payload.market_code,
-        "currency": payload.currency,
-        "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat(),
-        "lines": [
-            {"type": "SERVICE", "amount_minor": base},
-            {"type": "TRAVEL", "amount_minor": travel},
-        ],
-        "subtotal_minor": subtotal,
-        "tax_minor": tax,
-        "total_minor": total,
-        "pricing_policy_version": 1,
+def create_quote(
+    payload: QuoteRequest,
+    key: str = Depends(require_idempotency_key),
+    principal: Principal = Depends(get_principal),
+    db: Session = Depends(get_db),
+):
+    customer = customer_for_principal(db, principal)
+    require_market(principal, payload.market_code)
+
+    idem, replay = reserve(
+        db,
+        actor_subject=principal.subject,
+        operation="quote.create",
+        key=key,
+        payload=payload.model_dump(),
+    )
+    if replay is not None:
+        return replay
+
+    quote = QuoteService.create(
+        db,
+        customer=customer,
+        **payload.model_dump(),
+    )
+    hold = CapacityService.reserve_for_quote(db, quote)
+    result = {
+        "id": str(quote.id),
+        "status": quote.status,
+        "market_code": quote.market_code,
+        "currency": quote.currency,
+        "subtotal_minor": quote.subtotal_minor,
+        "tax_minor": quote.tax_minor,
+        "total_minor": quote.total_minor,
+        "scheduled_start": quote.scheduled_start.isoformat(),
+        "scheduled_end": quote.scheduled_end.isoformat(),
+        "expires_at": quote.expires_at.isoformat(),
+        "price_policy_version": quote.price_policy_version,
+        "capacity_hold": {
+            "id": str(hold.id),
+            "status": hold.status,
+            "expires_at": hold.expires_at.isoformat(),
+            "version": hold.version,
+        },
     }
+    complete(db, idem, result)
+    db.commit()
+    return result

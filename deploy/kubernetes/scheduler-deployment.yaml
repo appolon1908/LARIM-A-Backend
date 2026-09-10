@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: larimia-scheduler
+  labels:
+    app.kubernetes.io/name: larimia-scheduler
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: larimia-scheduler
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: larimia-scheduler
+        app.kubernetes.io/part-of: larimia
+    spec:
+      serviceAccountName: larimia
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: scheduler
+          image: ghcr.io/appolon1908-hue/larimia-backend@sha256:REPLACE_WITH_RELEASE_DIGEST
+          command:
+            - celery
+            - -A
+            - larimia.worker.celery_app
+            - beat
+            - --loglevel=INFO
+          envFrom:
+            - configMapRef:
+                name: larimia-runtime
+            - secretRef:
+                name: larimia-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi

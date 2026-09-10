@@ -2,26 +2,72 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: larimia-api
+  labels:
+    app.kubernetes.io/name: larimia-api
 spec:
   replicas: 3
   selector:
-    matchLabels: { app: larimia-api }
+    matchLabels:
+      app.kubernetes.io/name: larimia-api
   template:
     metadata:
-      labels: { app: larimia-api }
+      labels:
+        app.kubernetes.io/name: larimia-api
+        app.kubernetes.io/part-of: larimia
     spec:
+      serviceAccountName: larimia
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: api
-          image: ghcr.io/OWNER/larimia-backend:IMAGE_DIGEST
-          ports: [{ containerPort: 8000 }]
+          image: ghcr.io/appolon1908-hue/larimia-backend@sha256:REPLACE_WITH_RELEASE_DIGEST
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: larimia-runtime
+            - secretRef:
+                name: larimia-secrets
           readinessProbe:
-            httpGet: { path: /v1/health/ready, port: 8000 }
+            httpGet:
+              path: /v1/health/ready
+              port: http
             initialDelaySeconds: 10
             periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
           livenessProbe:
-            httpGet: { path: /v1/health/live, port: 8000 }
+            httpGet:
+              path: /v1/health/live
+              port: http
             initialDelaySeconds: 10
             periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
           resources:
-            requests: { cpu: "250m", memory: "256Mi" }
-            limits: { cpu: "1", memory: "1Gi" }
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
