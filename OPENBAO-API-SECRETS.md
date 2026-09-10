@@ -38,4 +38,3 @@ Logical prefix: `codestra/<environment>/larim-a/api/runtime/`.
 | `LARIMIA_DATABASE_URL` | `LARIMIA_DATABASE_URL_FILE` | Yes |
 | `LARIMIA_REDIS_URL` | `LARIMIA_REDIS_URL_FILE` | Yes |
 | `LARIMIA_CELERY_BROKER_URL` | `LARIMIA_CELERY_BROKER_URL_FILE` | Yes |
-
