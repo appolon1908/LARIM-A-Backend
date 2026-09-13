@@ -1,8 +1,10 @@
 from fastapi import APIRouter
+
 from larimia.config import get_settings
 from larimia.shared.capabilities import enabled_capabilities
 
 router = APIRouter()
+
 
 @router.get("/capabilities")
 def capabilities():

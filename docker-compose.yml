@@ -1,43 +1,74 @@
+name: larimia-local
 services:
   api:
     build: .
+    image: larimia-backend:${LARIMIA_IMAGE_TAG:-local}
     env_file: .env
-    ports: ["8000:8000"]
+    ports: ["127.0.0.1:${LARIMIA_PORT:-8000}:8000"]
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_started
-      rabbitmq:
-        condition: service_started
-
-  worker:
-    build: .
+      migrate: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    volumes: [private_storage:/var/lib/larimia/storage]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+  migrate:
+    image: larimia-backend:${LARIMIA_IMAGE_TAG:-local}
     env_file: .env
-    command: celery -A larimia.worker.celery_app worker --loglevel=INFO
-    depends_on: [postgres, redis, rabbitmq]
-
+    command: [alembic, upgrade, head]
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: "no"
+  worker:
+    image: larimia-backend:${LARIMIA_IMAGE_TAG:-local}
+    env_file: .env
+    command: [python, -m, larimia.marketplace.worker]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    restart: unless-stopped
+    stop_grace_period: 30s
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+  notifications:
+    image: larimia-backend:${LARIMIA_IMAGE_TAG:-local}
+    env_file: .env
+    command: [python, -m, larimia.marketplace.notification_delivery]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    restart: unless-stopped
+    stop_grace_period: 30s
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
   postgres:
     image: postgis/postgis:18-3.6
     environment:
       POSTGRES_DB: larimia
       POSTGRES_USER: larimia
-      POSTGRES_PASSWORD: larimia
-    ports: ["5432:5432"]
-    volumes: [larimia_pg:/var/lib/postgresql/data]
+      POSTGRES_PASSWORD: ${LARIMIA_DB_PASSWORD:?Run make setup}
+    volumes: [larimia_pg:/var/lib/postgresql]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U larimia -d larimia"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-
+      test: [CMD-SHELL, 'pg_isready -U larimia -d larimia']
+      interval: 3s
+      timeout: 3s
+      retries: 30
   redis:
     image: redis:8-alpine
-    ports: ["6379:6379"]
-
-  rabbitmq:
-    image: rabbitmq:4-management
-    ports: ["5672:5672", "15672:15672"]
-
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 3s
+      timeout: 3s
+      retries: 20
 volumes:
   larimia_pg:
+  private_storage:

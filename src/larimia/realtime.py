@@ -1,6 +1,8 @@
 import asyncio
 from collections import defaultdict
+
 from fastapi import WebSocket
+
 
 class ConnectionHub:
     def __init__(self) -> None:
@@ -29,5 +31,6 @@ class ConnectionHub:
             async with self._lock:
                 for ws in dead:
                     self._topics[topic].discard(ws)
+
 
 hub = ConnectionHub()

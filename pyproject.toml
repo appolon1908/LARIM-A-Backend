@@ -1,6 +1,6 @@
 [project]
 name = "larimia-backend"
-version = "0.2.0"
+version = "0.3.0"
 description = "Production-oriented LARIMÍA marketplace backend"
 requires-python = ">=3.13,<3.15"
 dependencies = [
@@ -14,24 +14,33 @@ dependencies = [
   "redis>=6,<7",
   "celery>=5.6,<5.7",
   "httpx>=0.28,<1",
-  "python-jose[cryptography]>=3.5,<4",
+  "PyJWT[crypto]>=2.10,<3",
   "structlog>=25,<26",
   "prometheus-client>=0.22,<1",
   "opentelemetry-api>=1.36,<2",
   "opentelemetry-sdk>=1.36,<2",
+  "opentelemetry-exporter-otlp-proto-http>=1.36,<2",
+  "opentelemetry-instrumentation-httpx>=0.57b0,<1",
+  "opentelemetry-instrumentation-redis>=0.57b0,<1",
   "opentelemetry-instrumentation-fastapi>=0.57b0,<1",
   "opentelemetry-instrumentation-sqlalchemy>=0.57b0,<1",
   "websockets>=15,<16",
-  "orjson>=3.11,<4"
+  "orjson>=3.11,<4",
+  "azure-identity>=1.24,<2",
+  "azure-storage-blob>=12.26,<13",
+  "azure-servicebus>=7.14,<8"
 ]
 
 [project.optional-dependencies]
 dev = [
-  "pytest>=8.4,<9",
+  "pytest>=9.0.3,<10",
   "pytest-asyncio>=1.1,<2",
   "ruff>=0.12,<1",
   "mypy>=1.17,<2",
-  "coverage>=7.10,<8"
+  "coverage>=7.10,<8",
+  "bandit>=1.8,<2",
+  "pip-audit>=2.9,<3",
+  "openapi-spec-validator>=0.7,<1"
 ]
 
 [build-system]
@@ -51,3 +60,15 @@ target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Header", "larimia.marketplace.security.require", "larimia.shared.auth.require_roles"]
+
+[tool.ruff.lint.per-file-ignores]
+"migrations/versions/*.py" = ["E501"] # Frozen SQL statements remain reviewable as complete statements.
+
+[tool.mypy]
+python_version = "3.13"
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_unused_ignores = true

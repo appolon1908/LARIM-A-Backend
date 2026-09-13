@@ -1,16 +1,29 @@
-.PHONY: dev test lint migrate migration
+.PHONY: setup dev test lint migrate seed worker clean openapi
+setup:
+	python3 scripts/local-env.py
 
 dev:
-	uvicorn larimia.main:app --reload --host 0.0.0.0 --port 8000
-
-test:
-	pytest -q
-
-lint:
-	ruff check src tests
+	docker compose up --build -d
 
 migrate:
-	alembic upgrade head
+	docker compose run --rm migrate
 
-migration:
-	alembic revision --autogenerate -m "$(m)"
+seed:
+	docker compose exec api python scripts/seed.py
+
+test:
+	uv run --frozen --all-extras pytest -q
+
+lint:
+	uv run --frozen --all-extras ruff check src tests scripts migrations
+	uv run --frozen --all-extras ruff format --check src tests scripts migrations
+	uv run --frozen --all-extras mypy src
+
+worker:
+	uv run --frozen python -m larimia.marketplace.worker
+
+openapi:
+	uv run --frozen python scripts/export_openapi.py
+
+clean:
+	docker compose down

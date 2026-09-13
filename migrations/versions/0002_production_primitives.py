@@ -3,14 +3,16 @@
 Revision ID: 0002
 Revises: 0001
 """
-from alembic import op
+
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision = "0002"
 down_revision = "0001"
 branch_labels = None
 depends_on = None
+
 
 def upgrade():
     op.create_table(
@@ -24,7 +26,9 @@ def upgrade():
         sa.Column("response_json", sa.Text()),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
-        sa.UniqueConstraint("actor_subject","operation","idempotency_key",name="uq_idempotency_actor_op_key"),
+        sa.UniqueConstraint(
+            "actor_subject", "operation", "idempotency_key", name="uq_idempotency_actor_op_key"
+        ),
     )
     op.create_table(
         "integration_status",
@@ -37,6 +41,7 @@ def upgrade():
         sa.Column("last_error", sa.Text()),
         sa.Column("last_checked_at", sa.DateTime(timezone=True)),
     )
+
 
 def downgrade():
     op.drop_table("integration_status")

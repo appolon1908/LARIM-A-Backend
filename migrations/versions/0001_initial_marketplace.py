@@ -3,8 +3,9 @@
 Revision ID: 0001
 Revises:
 """
-from alembic import op
+
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision = "0001"
@@ -13,10 +14,23 @@ branch_labels = None
 depends_on = None
 
 booking_status = postgresql.ENUM(
-    "DRAFT","QUOTED","CONFIRMED","MATCHING","ASSIGNED","EN_ROUTE","ARRIVED",
-    "IN_SERVICE","COMPLETED","SETTLING","SETTLED","CANCELLED","DISPUTED",
-    name="booking_status", create_type=False
+    "DRAFT",
+    "QUOTED",
+    "CONFIRMED",
+    "MATCHING",
+    "ASSIGNED",
+    "EN_ROUTE",
+    "ARRIVED",
+    "IN_SERVICE",
+    "COMPLETED",
+    "SETTLING",
+    "SETTLED",
+    "CANCELLED",
+    "DISPUTED",
+    name="booking_status",
+    create_type=False,
 )
+
 
 def upgrade():
     op.execute("CREATE EXTENSION IF NOT EXISTS postgis")
@@ -34,7 +48,9 @@ def upgrade():
         sa.Column("version", sa.BigInteger(), nullable=False, server_default="1"),
         sa.Column("scheduled_start", sa.DateTime(timezone=True), nullable=False),
         sa.Column("scheduled_end", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+        ),
     )
     op.create_index("ix_bookings_customer_id", "bookings", ["customer_id"])
     op.create_index("ix_bookings_market_code", "bookings", ["market_code"])
@@ -46,7 +62,12 @@ def upgrade():
         sa.Column("action", sa.String(120), nullable=False),
         sa.Column("resource_type", sa.String(80), nullable=False),
         sa.Column("resource_id", sa.String(255), nullable=False),
-        sa.Column("metadata_json", postgresql.JSONB(), nullable=False, server_default=sa.text("'{}'::jsonb")),
+        sa.Column(
+            "metadata_json",
+            postgresql.JSONB(),
+            nullable=False,
+            server_default=sa.text("'{}'::jsonb"),
+        ),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
     )
 
@@ -98,7 +119,16 @@ def upgrade():
         sa.Column("currency", sa.String(3), nullable=False),
     )
 
+
 def downgrade():
-    for table in ["ledger_entries","ledger_transactions","ledger_accounts","inbox_receipts","outbox_events","audit_events","bookings"]:
+    for table in [
+        "ledger_entries",
+        "ledger_transactions",
+        "ledger_accounts",
+        "inbox_receipts",
+        "outbox_events",
+        "audit_events",
+        "bookings",
+    ]:
         op.drop_table(table)
     booking_status.drop(op.get_bind(), checkfirst=True)

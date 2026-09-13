@@ -1,14 +1,19 @@
 import uuid
 from datetime import datetime
+
 from sqlalchemy import DateTime, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
+
 from larimia.shared.db import Base
+
 
 class IdempotencyRecord(Base):
     __tablename__ = "idempotency_records"
     __table_args__ = (
-        UniqueConstraint("actor_subject", "operation", "idempotency_key", name="uq_idempotency_actor_op_key"),
+        UniqueConstraint(
+            "actor_subject", "operation", "idempotency_key", name="uq_idempotency_actor_op_key"
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

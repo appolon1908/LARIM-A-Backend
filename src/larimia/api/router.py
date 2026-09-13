@@ -1,23 +1,24 @@
 from fastapi import APIRouter
-from larimia.api.routes.health import router as health
-from larimia.api.routes.realtime import router as realtime
+
+from larimia.api.routes.availability import router as availability
 from larimia.api.routes.catalog import router as catalog
+from larimia.api.routes.dispatch import router as dispatch
+from larimia.api.routes.finance import router as finance
+from larimia.api.routes.health import router as health
+from larimia.api.routes.markets import router as markets
+from larimia.api.routes.memberships import router as memberships
+from larimia.api.routes.partners import router as partners
+from larimia.api.routes.payments import router as payments
 from larimia.api.routes.providers import router as providers
 from larimia.api.routes.quotes import router as quotes
-from larimia.api.routes.availability import router as availability
-from larimia.api.routes.dispatch import router as dispatch
-from larimia.api.routes.visits import router as visits
-from larimia.api.routes.payments import router as payments
-from larimia.api.routes.safety import router as safety
-from larimia.api.routes.partners import router as partners
-from larimia.api.routes.memberships import router as memberships
+from larimia.api.routes.realtime import router as realtime
 from larimia.api.routes.reviews import router as reviews
+from larimia.api.routes.safety import router as safety
 from larimia.api.routes.support import router as support
-from larimia.api.routes.finance import router as finance
-from larimia.api.routes.markets import router as markets
+from larimia.api.routes.system import router as system
+from larimia.api.routes.visits import router as visits
 from larimia.api.routes.webhooks import router as webhooks
 from larimia.bookings.api.routes import router as bookings
-from larimia.api.routes.system import router as system
 
 api_router = APIRouter()
 api_router.include_router(health, prefix="/health", tags=["health"])

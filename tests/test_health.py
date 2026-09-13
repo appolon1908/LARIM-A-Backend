@@ -1,5 +1,7 @@
 from fastapi.testclient import TestClient
+
 from larimia.main import app
+
 
 def test_live_health():
     client = TestClient(app)

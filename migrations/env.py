@@ -1,18 +1,19 @@
 from logging.config import fileConfig
+
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+from larimia.config import get_settings
+from larimia.marketplace import models  # noqa: F401
 from larimia.shared.db import Base
-from larimia.bookings.infrastructure.models import Booking
-from larimia.shared.audit import AuditEvent
-from larimia.shared.events import OutboxEvent, InboxReceipt
-from larimia.ledger.infrastructure_models import LedgerAccount, LedgerTransaction, LedgerEntry
 
 config = context.config
-if config.config_file_name:
+config.set_main_option("sqlalchemy.url", get_settings().database_url.replace("%", "%%"))
+if config.config_file_name and config.file_config.has_section("loggers"):
     fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = Base.metadata
+
 
 def run_migrations_offline():
     context.configure(
@@ -23,6 +24,7 @@ def run_migrations_offline():
     )
     with context.begin_transaction():
         context.run_migrations()
+
 
 def run_migrations_online():
     connectable = engine_from_config(
@@ -35,10 +37,8 @@ def run_migrations_online():
         with context.begin_transaction():
             context.run_migrations()
 
+
 if context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()
-
-from larimia.shared.idempotency_models import IdempotencyRecord
-from larimia.integrations.models import IntegrationStatus
