@@ -37,6 +37,21 @@ Backend canonical base: `/api/v1`; `/v1` aliases are retained where implemented.
     treat a received file as verified. Download requires an authorized bearer and ownership.
 
 Demo accounts are listed in README; passwords are generated in the ignored `.env`, not in this handoff.
-Membership purchase, partner commercial booking, dynamic add-ons, rich job checklists and external
-notification preference screens must not advertise supported behavior before their backend extensions
+Membership purchase, partner commercial booking, dynamic add-ons, paid job extras and advanced onboarding screens must not advertise supported behavior before their backend extensions
 are implemented. Legacy booking rows remain operations-only until reviewed migration mapping exists.
+
+
+## Follow-up APIs added with migrations 0007–0009
+
+- User notification preferences: GET/PUT `/me/notification-preferences` with email/sms/push booleans.
+  Show owned status at GET `/me/notification-deliveries`. SIMULATED means no real send; ACCEPTED means
+  gateway acknowledgement, not final delivery. Operations templates, DLQ and replay are documented in
+  `docs/notifications.md`; do not expose them to customer/provider identities.
+- Providers must fetch `/provider/jobs/{id}/checklist`, present the snapshotted requirements, upload
+  private evidence, and PUT `/provider/jobs/{id}/checklist/{code}`. Use `/time/start`, `/time/stop` and
+  GET `/time` for server clocks. Completion can return 409 until evidence is independently CLEARED,
+  all items are completed and required time is recorded. See `docs/job-execution.md`.
+- Operations configure `/admin/catalog/{service_id}/job-policy` and independently review evidence at
+  `/admin/jobs/evidence/{document_id}/review`. Policy edits affect future quotes only.
+- Offer ranking_details now includes ETA/distance, local estimate provenance, historical signals and
+  the weights used. Label local estimates appropriately; do not display them as live traffic predictions.

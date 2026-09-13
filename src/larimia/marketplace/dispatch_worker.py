@@ -7,9 +7,8 @@ from sqlalchemy import select
 from larimia.config import get_settings
 from larimia.shared.db import SessionLocal
 
-from . import domain
 from . import service as svc
-from .models import DispatchSession, Offer, Payment, Provider, User, now
+from .models import DispatchSession, Offer, Payment, User, now
 from .models import MarketplaceBooking as Booking
 
 
@@ -45,39 +44,18 @@ def recover() -> int:
             excluded = {offer.provider_id for offer in offers}
             candidates = []
             if session.attempt < session.max_attempts:
-                for provider in db.scalars(
-                    select(Provider)
-                    .where(Provider.status == "APPROVED", Provider.online.is_(True))
-                    .limit(1000)
-                ):
-                    if provider.id not in excluded and svc.eligible(db, provider, booking):
-                        distance = domain.distance_km(
-                            provider.latitude,
-                            provider.longitude,
-                            booking.address["latitude"],
-                            booking.address["longitude"],
-                        )
-                        candidates.append(
-                            (
-                                domain.score(
-                                    distance,
-                                    provider.rating,
-                                    provider.completion_rate,
-                                    provider.workload,
-                                    get_settings().dispatch_weights,
-                                ),
-                                provider,
-                            )
-                        )
-            candidates.sort(key=lambda row: (-row[0], str(row[1].id)))
+                from .dispatch_ranking import rank_candidates
+
+                candidates = rank_candidates(db, booking, excluded)
             if candidates:
                 session.attempt += 1
-                for rank, provider in candidates[: get_settings().dispatch_batch_size]:
+                for rank, provider, details in candidates[: get_settings().dispatch_batch_size]:
                     db.add(
                         Offer(
                             booking_id=booking.id,
                             provider_id=provider.id,
                             rank_score=rank,
+                            ranking_details=details,
                             attempt=session.attempt,
                             expires_at=now()
                             + timedelta(seconds=get_settings().dispatch_offer_seconds),

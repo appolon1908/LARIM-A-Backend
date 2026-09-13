@@ -12,7 +12,7 @@ from websockets.sync.client import connect
 from larimia.config import get_settings
 
 
-def certify(base: str, allow_staging: bool = False) -> dict:
+def certify(base: str, allow_staging: bool = False, require_notifications: bool = False) -> dict:
     settings = get_settings()
     if not allow_staging and (settings.env != "development" or settings.auth_mode != "local"):
         raise RuntimeError("This script is for isolated local mock-payment certification only")
@@ -53,6 +53,13 @@ def certify(base: str, allow_staging: bool = False) -> dict:
         raise RuntimeError("Certification must not transact with a real payment gateway")
     customer, admin = login("customer1"), login("admin")
     results["customer_login"] = True
+    if require_notifications:
+        request(
+            "PUT",
+            "/api/v1/me/notification-preferences",
+            customer,
+            {"email": True, "sms": False, "push": False},
+        )
     services = request("GET", "/api/v1/catalog")["services"]
     results["catalog"] = any(row["code"] == "MASSAGE_60" for row in services)
     address = request("GET", "/api/v1/me/addresses", customer)["items"][0]
@@ -179,6 +186,22 @@ def certify(base: str, allow_staging: bool = False) -> dict:
                 found = True
                 break
     results["worker_and_realtime_delivery"] = found
+    if require_notifications:
+        deadline = time.monotonic() + 15
+        delivered = False
+        while time.monotonic() < deadline:
+            notices = request("GET", "/api/v1/me/notifications", customer)["items"]
+            ids = {n["id"] for n in notices if n["payload"].get("booking_id") == identity}
+            deliveries = request("GET", "/api/v1/me/notification-deliveries", customer)["items"]
+            delivered = any(
+                d["notification_id"] in ids
+                and d["status"] in {"SIMULATED", "ACCEPTED", "DELIVERED"}
+                for d in deliveries
+            )
+            if delivered:
+                break
+            time.sleep(0.5)
+        results["asynchronous_notification_gateway"] = delivered
     client.close()
     report = {
         "environment": "azure-staging" if allow_staging else "local-container",
@@ -199,8 +222,9 @@ if __name__ == "__main__":
     parser.add_argument("--base-url", required=True)
     parser.add_argument("--output", default="/tmp/larimia-certification.json")
     parser.add_argument("--allow-staging", action="store_true")
+    parser.add_argument("--require-notifications", action="store_true")
     args = parser.parse_args()
-    report = certify(args.base_url, args.allow_staging)
+    report = certify(args.base_url, args.allow_staging, args.require_notifications)
     from pathlib import Path
 
     Path(args.output).write_text(json.dumps(report, indent=2) + "\n")

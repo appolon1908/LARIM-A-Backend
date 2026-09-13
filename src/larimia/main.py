@@ -13,6 +13,8 @@ from sqlalchemy import text
 
 from larimia.config import get_settings
 from larimia.marketplace.http_security import JsonFormatter, RequestLimits
+from larimia.marketplace.job_api import router as job_router
+from larimia.marketplace.notification_api import router as notification_router
 from larimia.marketplace.operations import router as operations_router
 from larimia.marketplace.realtime import router as realtime_router
 from larimia.marketplace.routes import router
@@ -116,7 +118,7 @@ def ready():
         with SessionLocal() as db:
             db.execute(text("SELECT 1"))
             revision = db.scalar(text("SELECT version_num FROM alembic_version"))
-            if revision != "0006":
+            if revision != "0009":
                 raise RuntimeError("Migration pending")
         Redis.from_url(settings.redis_url, socket_timeout=2, socket_connect_timeout=2).ping()
     except Exception as exc:
@@ -149,3 +151,8 @@ app.add_middleware(RequestLimits)
 
 FastAPIInstrumentor.instrument_app(app, excluded_urls="health/live")
 SQLAlchemyInstrumentor().instrument(engine=engine, enable_commenter=False)
+
+
+app.include_router(notification_router, prefix="/api/v1")
+
+app.include_router(job_router, prefix="/api/v1")

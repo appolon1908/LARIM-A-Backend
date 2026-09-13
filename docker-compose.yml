@@ -38,6 +38,18 @@ services:
     tmpfs: [/tmp]
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
+  notifications:
+    image: larimia-backend:${LARIMIA_IMAGE_TAG:-local}
+    env_file: .env
+    command: [python, -m, larimia.marketplace.notification_delivery]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    restart: unless-stopped
+    stop_grace_period: 30s
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
   postgres:
     image: postgis/postgis:18-3.6
     environment:

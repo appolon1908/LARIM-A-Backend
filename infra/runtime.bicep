@@ -20,6 +20,8 @@ param allowedOrigins string
 param storageUrl string
 param serviceBusNamespace string
 param otlpEndpoint string = ''
+param notificationRelayUrl string = ''
+param notificationTokenSecretUri string = ''
 @allowed(['migration', 'runtime'])
 param phase string = 'migration'
 param minReplicas int = 1
@@ -28,11 +30,11 @@ param maxReplicas int = 3
 resource identity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = { name: identityName }
 resource migratorIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = { name: migratorIdentityName }
 var assignedIdentity = { type: 'UserAssigned', userAssignedIdentities: { '${identity.id}': {} } }
-var secrets = [
+var secrets = concat([
   { name: 'database-url', keyVaultUrl: databaseSecretUri, identity: identity.id }
   { name: 'migration-database-url', keyVaultUrl: migrationDatabaseSecretUri, identity: identity.id }
   { name: 'redis-url', keyVaultUrl: redisSecretUri, identity: identity.id }
-]
+], empty(notificationTokenSecretUri) ? [] : [{ name: 'notification-token', keyVaultUrl: notificationTokenSecretUri, identity: identity.id }])
 var env = [
   { name: 'LARIMIA_ENV', value: 'staging' }
   { name: 'LARIMIA_AUTH_MODE', value: 'oidc' }
@@ -54,6 +56,11 @@ var env = [
   { name: 'LARIMIA_TELEMETRY_OTLP_ENDPOINT', value: otlpEndpoint }
   { name: 'LARIMIA_BUILD_VERSION', value: image }
 ]
+var notificationEnv = concat(env, empty(notificationTokenSecretUri) ? [] : [
+  { name: 'LARIMIA_NOTIFICATION_MODE', value: 'relay' }
+  { name: 'LARIMIA_NOTIFICATION_RELAY_URL', value: notificationRelayUrl }
+  { name: 'LARIMIA_NOTIFICATION_RELAY_TOKEN', secretRef: 'notification-token' }
+])
 var registries = [{ server: registryServer, identity: identity.id }]
 resource migration 'Microsoft.App/jobs@2024-03-01' = {
   name: '${appName}-migration'
@@ -117,6 +124,7 @@ resource worker 'Microsoft.App/containerApps@2024-03-01' = if (phase == 'runtime
     template: {
       containers: [
         { name: 'worker', image: image, command: ['python','-m','larimia.marketplace.worker'], env: env, resources: { cpu: json('0.25'), memory: '0.5Gi' } }
+        { name: 'notifications', image: image, command: ['python','-m','larimia.marketplace.notification_delivery'], env: notificationEnv, resources: { cpu: json('0.25'), memory: '0.5Gi' } }
         { name: 'event-publisher', image: image, command: ['python','-m','larimia.marketplace.event_transport'], env: env, resources: { cpu: json('0.25'), memory: '0.5Gi' } }
       ]
       scale: { minReplicas: 1, maxReplicas: 1 }

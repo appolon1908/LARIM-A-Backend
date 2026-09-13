@@ -14,6 +14,7 @@ values = {
     "LARIMIA_REDIS_URL": "redis://redis:6379/0",
     "LARIMIA_ENV": "development",
     "LARIMIA_AUTH_MODE": "local",
+    "LARIMIA_NOTIFICATION_MODE": "local",
     "LARIMIA_LOCAL_JWT_SECRET": secrets.token_urlsafe(48),
     "LARIMIA_SEED_PASSWORD": secrets.token_urlsafe(24),
 }

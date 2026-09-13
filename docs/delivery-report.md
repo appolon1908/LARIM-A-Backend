@@ -28,15 +28,15 @@ review candidate, not a certified production release.
 
 ## 5. Test report
 
-- Unit, integration, contract and API E2E: 55 passed plus 3 subtests on PostgreSQL 17 and separately on
+- Unit, integration, contract and API E2E: 68 passed plus 3 subtests on PostgreSQL 17 and separately on
   an empty PostgreSQL 18/PostGIS database with Redis. Two upstream test-client deprecation warnings remain.
-- HTTP/WebSocket container certification: all 26 checks PASS; [step-by-step evidence](certification.local.json).
-- Restricted runtime-role verification: all 55 tests plus 3 subtests pass using `larimia_app`,
+- HTTP/WebSocket container certification: all 27 checks PASS; [step-by-step evidence](certification.local.json).
+- Restricted runtime-role verification: all 68 tests plus 3 subtests pass using `larimia_app`,
   provisioned by the migration script without superuser/schema-creation or journal-update rights.
 - Local read baseline: 50 sequential catalog reads, median 3.18 ms / p95 5.14 ms; this is not a
   sustained or cloud-load benchmark.
 - API/worker restart: previous booking receipt and captured payment remained readable; readiness PASS.
-- Ruff and format checks: PASS. Mypy: PASS across 93 source files. Bandit: zero medium/high findings.
+- Ruff and format checks: PASS. Mypy: PASS across 98 source files. Bandit: zero medium/high findings.
 - Frozen dependency audit: no known public-package vulnerabilities; the private project itself is not
   on PyPI and is assessed through source review/Bandit rather than registry lookup.
 - Secret scan: candidate tracked-file scan PASS; ignored local .env is excluded. The PR workflow also
@@ -58,7 +58,7 @@ health and dedicated mock-payment certification. It has not been triggered.
 
 ## 7. Database report
 
-Alembic revision: **0006**. Empty PostgreSQL 18 database → head → seed twice → complete test suite PASS.
+Alembic revision: **0009**. Empty PostgreSQL 18 database → head → seed twice → complete test suite PASS.
 Existing 0001/0002 tables are preserved. New marketplace rows have explicit quote provenance; legacy
 booking rows are available only to authorized operations pending a reviewed mapping. Forward-only
 financial migrations reject automatic destructive downgrade. Application rollback requires an image
@@ -66,7 +66,7 @@ compatible with the expanded schema; restore into a separate database before any
 
 ## 8. API report
 
-[OpenAPI](../openapi.generated.json): 87 canonical operations across 77 `/api/v1` paths, compatibility
+[OpenAPI](../openapi.generated.json): 100 canonical operations across 89 `/api/v1` paths, compatibility
 aliases under `/v1`, health and authenticated WebSocket gateway. Typed booking/quote schemas protect
 critical frontend flows; broader secondary response schemas still need expansion.
 
@@ -90,3 +90,17 @@ Mission 2 must use [frontend contract map](frontend-contract-map.md),
 [exact integration changes](frontend-migration-contract.md), [OpenAPI](../openapi.generated.json),
 [realtime protocol](realtime.md) and README demo identity instructions. Passwords are generated in the
 ignored local `.env`; no universal demo password is committed. Cloud API base remains unset.
+
+
+## Implementation follow-up
+
+Migrations 0007–0009 add durable external notification templates/preferences/leases/replay, a separately
+running notification worker and explicit SIMULATED versus gateway ACCEPTED states; immutable job-policy
+snapshots, checklist evidence review and server time entries enforced before capture; and shared dispatch
+ranking using cached positions, estimated ETA, historical acceptance/fairness and market-balance signals.
+
+The local HTTP/WebSocket scenario now also requires an asynchronous notification receipt (27 checks).
+The full suite includes a standalone worker subprocess regression after catching an API-only metadata
+import dependency. CI uses three application containers for API, outbox worker and notification worker.
+Current follow-up CI results are attached to PR #9; the earlier linked run remains historical evidence.
+See notifications.md, job-execution.md and the frontend migration contract for integration details.

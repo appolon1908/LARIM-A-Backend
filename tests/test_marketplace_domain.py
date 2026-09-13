@@ -64,3 +64,26 @@ def test_balanced_entry():
 def test_configurable_dispatch_fairness():
     weights = dict(distance=0.4, rating=0.2, completion=0.3, workload=0.1)
     assert score(1, 5, 1, 0, weights) > score(1, 5, 1, 2, weights)
+
+
+def test_dispatch_new_signals_prefer_eta_acceptance_and_fairness():
+    weights = dict(
+        distance=0,
+        rating=0,
+        completion=0,
+        workload=0,
+        eta=1,
+        acceptance=1,
+        specialization=1,
+        fairness=1,
+        market_balance=1,
+    )
+
+    def rank(**kwargs):
+        return score(1, 5, 1, 0, weights, **kwargs)
+
+    assert rank(eta_minutes=2) > rank(eta_minutes=20)
+    assert rank(acceptance=0.9) > rank(acceptance=0.1)
+    assert rank(specialization=1) > rank(specialization=0.1)
+    assert rank(recent_assignments=1) > rank(recent_assignments=10)
+    assert rank(market_scarcity=0) > rank(market_scarcity=4)

@@ -32,7 +32,7 @@ STAGING_PARAMETERS is a nonsecret JSON object containing the runtime Bicep param
 - appName, environmentId, identityName, migratorIdentityName, registryServer
 - databaseSecretUri, migrationDatabaseSecretUri, redisSecretUri (versioned Key Vault URIs)
 - oidcIssuer, oidcAudience, oidcJwksUrl; workforceIssuer, workforceAudience, workforceJwksUrl
-- allowedOrigins, storageUrl, serviceBusNamespace, optional otlpEndpoint and replica settings
+- allowedOrigins, storageUrl, serviceBusNamespace, optional otlpEndpoint, notificationRelayUrl, notificationTokenSecretUri and replica settings
 
 STAGING_CERTIFICATION_TOKENS_JSON must contain short-lived tokens for **dedicated test identities**:
 customer1, admin and provider1–provider4. Provision their DB issuer bindings and test profiles/addresses;
@@ -51,3 +51,7 @@ previous running app revision intact; promotion does not run. Migrations 0003+ i
 blind destructive downgrade. Restore into an isolated database and reconcile financial/outbox state
 before a database rollback. Re-run health, identity, scenario, worker and storage checks after promotion.
 A compiled template and local scenario are not substitutes for these cloud gates.
+
+Notification relay activation also requires explicit Key Vault secret read access for the runtime
+identity and verified recipient mapping in the relay. Without configuration, external deliveries remain
+pending; the independent in-app outbox and realtime flow keep working. See notifications.md.

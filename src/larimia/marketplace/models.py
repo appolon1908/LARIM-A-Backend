@@ -17,6 +17,9 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from larimia.shared.db import Base
 
+# Register the outbox table for standalone workers as well as API imports.
+from larimia.shared.events import OutboxEvent  # noqa: F401
+
 
 def now() -> datetime:
     return datetime.now(UTC)
@@ -123,6 +126,7 @@ class Offer(Entity, Base):
     status: Mapped[str] = mapped_column(String(24), default="PENDING", index=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     rank_score: Mapped[float] = mapped_column(Float)
+    ranking_details: Mapped[dict] = mapped_column(JSON, default=dict)
     attempt: Mapped[int] = mapped_column(Integer, default=1)
 
 
@@ -179,6 +183,7 @@ class Case(Entity, Base):
 
 
 class Notification(Entity, Base):
+    external_enqueued_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     __tablename__ = "marketplace_notifications"
     event_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("outbox_events.id"), unique=True)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("marketplace_users.id"), index=True)
@@ -269,3 +274,65 @@ class EventDelivery(Entity, Base):
     available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     lease_token: Mapped[str | None] = mapped_column(String(36))
     last_error: Mapped[str | None] = mapped_column(String(120))
+
+
+class NotificationPreference(Entity, Base):
+    __tablename__ = "notification_preferences"
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("marketplace_users.id"), unique=True)
+    channels: Mapped[dict[str, bool]] = mapped_column(JSON, default=dict)
+
+
+class NotificationTemplate(Entity, Base):
+    __tablename__ = "notification_templates"
+    event_type: Mapped[str] = mapped_column(String(120))
+    channel: Mapped[str] = mapped_column(String(16))
+    subject: Mapped[str] = mapped_column(String(200))
+    body: Mapped[str] = mapped_column(String(4000))
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    __table_args__ = (UniqueConstraint("event_type", "channel"),)
+
+
+class NotificationDelivery(Entity, Base):
+    __tablename__ = "notification_deliveries"
+    notification_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("marketplace_notifications.id"), index=True
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("marketplace_users.id"), index=True)
+    channel: Mapped[str] = mapped_column(String(16))
+    template_version: Mapped[int] = mapped_column(Integer)
+    subject: Mapped[str] = mapped_column(String(500))
+    body: Mapped[str] = mapped_column(String(8000))
+    status: Mapped[str] = mapped_column(String(24), default="PENDING", index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    lease_token: Mapped[str | None] = mapped_column(String(36))
+    last_error: Mapped[str | None] = mapped_column(String(120))
+    provider_reference: Mapped[str | None] = mapped_column(String(200))
+    __table_args__ = (UniqueConstraint("notification_id", "channel"),)
+
+
+class ServiceJobPolicy(Entity, Base):
+    __tablename__ = "service_job_policies"
+    service_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("catalog_services.id"), unique=True)
+    requirements: Mapped[dict] = mapped_column(JSON, default=dict)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+
+
+class JobChecklistItem(Entity, Base):
+    __tablename__ = "job_checklist_items"
+    booking_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("marketplace_bookings.id"), index=True)
+    code: Mapped[str] = mapped_column(String(80))
+    completed: Mapped[bool] = mapped_column(Boolean, default=False)
+    completed_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("marketplace_users.id"))
+    evidence_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("private_documents.id"))
+    notes: Mapped[str] = mapped_column(String(2000), default="")
+    __table_args__ = (UniqueConstraint("booking_id", "code"),)
+
+
+class JobTimeEntry(Entity, Base):
+    __tablename__ = "job_time_entries"
+    booking_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("marketplace_bookings.id"), index=True)
+    provider_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("provider_profiles.id"), index=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -29,7 +29,12 @@ class Settings(BaseSettings):
     storage_root: str = "/var/lib/larimia/storage"
     payment_webhook_secret: str = Field(default="", repr=False)
     rate_limit_per_minute: int = 300
+    notification_mode: str = "disabled"
+    notification_relay_url: str = ""
+    notification_relay_token: str = Field(default="", repr=False)
     payment_mode: str = "mock"
+    dispatch_speed_kmh: float = Field(default=25, ge=5, le=130)
+    dispatch_road_factor: float = Field(default=1.3, ge=1, le=3)
     dispatch_offer_seconds: int = 60
     dispatch_batch_size: int = 3
     dispatch_weights: dict[str, float] = {
@@ -37,6 +42,11 @@ class Settings(BaseSettings):
         "rating": 0.2,
         "completion": 0.3,
         "workload": 0.1,
+        "eta": 0.2,
+        "acceptance": 0.1,
+        "specialization": 0.05,
+        "fairness": 0.05,
+        "market_balance": 0.05,
     }
     certification_enabled: bool = False
     certification_tokens_json: str = Field(default="{}", repr=False)
@@ -88,10 +98,39 @@ class Settings(BaseSettings):
             ".servicebus.windows.net"
         ):
             raise ValueError("Azure Service Bus requires a fully qualified namespace")
+        if self.notification_mode not in {"disabled", "local", "relay"}:
+            raise ValueError("Unknown notification adapter")
+        if self.notification_mode == "local" and self.env != "development":
+            raise ValueError("Local notification simulation is development-only")
+        if self.notification_mode == "relay":
+            from urllib.parse import urlsplit
+
+            endpoint = urlsplit(self.notification_relay_url)
+            if (
+                endpoint.scheme != "https"
+                or not endpoint.hostname
+                or endpoint.username
+                or endpoint.password
+                or endpoint.query
+                or endpoint.fragment
+                or not self.notification_relay_token
+            ):
+                raise ValueError("Notification relay requires a configured HTTPS URL and token")
         if self.payment_mode != "mock":
             raise ValueError("No live payment gateway has been installed; use explicit mock mode")
         if self.local_jwt_secret and len(self.local_jwt_secret) < 32:
             raise ValueError("Local JWT signing keys must be at least 32 characters")
+        import math
+
+        required_weights = {"distance", "rating", "completion", "workload"}
+        optional_weights = {"eta", "acceptance", "specialization", "fairness", "market_balance"}
+        if (
+            not required_weights.issubset(self.dispatch_weights)
+            or not set(self.dispatch_weights).issubset(required_weights | optional_weights)
+            or any(not math.isfinite(v) or v < 0 for v in self.dispatch_weights.values())
+            or sum(self.dispatch_weights.values()) <= 0
+        ):
+            raise ValueError("Dispatch weights must be known, finite and nonnegative")
         if self.dispatch_offer_seconds <= 0 or not 1 <= self.dispatch_batch_size <= 50:
             raise ValueError("Invalid dispatch configuration")
         if self.env.lower() in {"staging", "production"}:

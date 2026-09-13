@@ -2,7 +2,8 @@
 
 Python 3.13 / FastAPI modular monolith with PostgreSQL/PostGIS, Redis, durable outbox processing,
 identity and permission checks, server-priced quotes, booking/dispatch/job workflows, mock payment
-capture/refunds, balanced journals, payouts, private documents, messaging, reviews and operations APIs.
+capture/refunds, balanced journals, payouts, private documents, messaging, reviews and operations APIs. Job requirements and evidence/time gates
+protect capture; a separate worker handles opt-in external notifications with retry and dead letters.
 
 This repository contains a working **local marketplace implementation**, not a certification of live
 payments or Azure staging. The frontend reference was inspected read-only. See
@@ -32,7 +33,7 @@ make lint
 make test
 make openapi
 # Against running Compose, execute the HTTP certification inside the API container:
-docker compose exec api python scripts/certify.py --base-url http://localhost:8000
+docker compose exec api python scripts/certify.py --base-url http://localhost:8000 --require-notifications
 ```
 
 See [local development](docs/local-development.md) for host and container test commands.
@@ -44,6 +45,7 @@ See [local development](docs/local-development.md) for host and container test c
 - [Mission 2 migration contract](docs/frontend-migration-contract.md)
 - [Generated OpenAPI](openapi.generated.json)
 - [Architecture](docs/architecture.md), [domain model](docs/domain-model.md)
+- [Notifications](docs/notifications.md), [job execution](docs/job-execution.md)
 - [Security](docs/security.md), [operations](docs/operations-runbook.md)
 - [Azure source and staging gates](docs/staging.md)
 

@@ -58,13 +58,28 @@ def distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 
 def score(
-    distance: float, rating: float, completion: float, workload: int, weights: dict[str, float]
+    distance: float,
+    rating: float,
+    completion: float,
+    workload: int,
+    weights: dict[str, float],
+    *,
+    eta_minutes: float = 0,
+    acceptance: float = 0,
+    specialization: float = 0,
+    recent_assignments: int = 0,
+    market_scarcity: float = 0,
 ) -> float:
     return (
         weights["distance"] / (1 + distance)
         + weights["rating"] * rating / 5
         + weights["completion"] * completion
         - weights["workload"] * workload
+        + weights.get("eta", 0) / (1 + eta_minutes)
+        + weights.get("acceptance", 0) * acceptance
+        + weights.get("specialization", 0) * specialization
+        - weights.get("fairness", 0) * recent_assignments
+        - weights.get("market_balance", 0) * market_scarcity
     )
 
 

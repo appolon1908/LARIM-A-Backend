@@ -86,6 +86,40 @@ def seed():
     print("Seed completed; existing accounts and credentials were preserved.")
 
 
+def seed_notification_templates():
+    from larimia.marketplace.models import NotificationTemplate
+
+    with SessionLocal.begin() as db:
+        for event_type in [
+            "CustomerRegistered",
+            "ProviderApproved",
+            "ProviderSuspended",
+            "ProviderAssigned",
+            "JobStarted",
+            "JobCompleted",
+            "PaymentCaptured",
+            "BookingCancelled",
+            "PayoutScheduled",
+            "SupportTicketCreated",
+        ]:
+            for channel in ["email", "sms", "push"]:
+                existing = db.scalar(
+                    select(NotificationTemplate).where(
+                        NotificationTemplate.event_type == event_type,
+                        NotificationTemplate.channel == channel,
+                    )
+                )
+                if not existing:
+                    db.add(
+                        NotificationTemplate(
+                            event_type=event_type,
+                            channel=channel,
+                            subject="LARIMÍA update",
+                            body="Your marketplace activity changed: $event_type.",
+                        )
+                    )
+
+
 def seed_scenarios():
 
     from larimia.marketplace import schemas as s
@@ -183,3 +217,4 @@ def seed_scenarios():
 if __name__ == "__main__":
     seed()
     seed_scenarios()
+    seed_notification_templates()

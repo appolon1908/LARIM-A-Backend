@@ -157,6 +157,11 @@ def create_quote(db: Session, user: User, payload) -> dict:
         market_code=service.market_code,
         pricing_policy_version=service.version,
     )
+    from .models import ServiceJobPolicy
+
+    policy = db.scalar(select(ServiceJobPolicy).where(ServiceJobPolicy.service_id == service.id))
+    if policy:
+        snapshot["job_policy"] = {**policy.requirements, "version": policy.version}
     quote = Quote(
         customer_id=user.id,
         service_id=service.id,
@@ -239,7 +244,9 @@ def authorize(db: Session, user: User, payload) -> dict:
     return serialize(payment)
 
 
-def eligible(db: Session, provider: Provider, booking: Booking) -> bool:
+def eligible(
+    db: Session, provider: Provider, booking: Booking, blocked_provider_ids: set[UUID] | None = None
+) -> bool:
     if provider.status != "APPROVED" or not provider.online or provider.workload > 0:
         return False
     if (
@@ -249,11 +256,17 @@ def eligible(db: Session, provider: Provider, booking: Booking) -> bool:
         return False
     if not set(booking.snapshot["required_skills"]).issubset(provider.skills):
         return False
-    if db.scalar(
-        select(Block.id).where(
-            Block.provider_id == provider.id, Block.customer_id == booking.customer_id
+    blocked = (
+        provider.id in blocked_provider_ids
+        if blocked_provider_ids is not None
+        else db.scalar(
+            select(Block.id).where(
+                Block.provider_id == provider.id, Block.customer_id == booking.customer_id
+            )
         )
-    ):
+        is not None
+    )
+    if blocked:
         return False
     windows = provider.availability
     if not any(
@@ -280,31 +293,9 @@ def dispatch(db: Session, user: User, booking_id: UUID) -> dict:
     change(db, user, booking, "SEARCHING", "DispatchStarted")
     session = DispatchSession(booking_id=booking.id)
     db.add(session)
-    candidates = db.scalars(
-        select(Provider).where(Provider.status == "APPROVED", Provider.online.is_(True)).limit(1000)
-    ).all()
-    ranked = []
-    for provider in candidates:
-        if eligible(db, provider, booking):
-            distance = domain.distance_km(
-                provider.latitude,
-                provider.longitude,
-                booking.address["latitude"],
-                booking.address["longitude"],
-            )
-            ranked.append(
-                (
-                    domain.score(
-                        distance,
-                        provider.rating,
-                        provider.completion_rate,
-                        provider.workload,
-                        get_settings().dispatch_weights,
-                    ),
-                    provider,
-                )
-            )
-    ranked.sort(key=lambda pair: (-pair[0], str(pair[1].id)))
+    from .dispatch_ranking import rank_candidates
+
+    ranked = rank_candidates(db, booking)
     if not ranked:
         change(db, user, booking, "NO_PROVIDER_FOUND", "NoProviderFound")
         session.status = "EXHAUSTED"
@@ -316,11 +307,12 @@ def dispatch(db: Session, user: User, booking_id: UUID) -> dict:
             payment.status = "CANCELLED"
     else:
         change(db, user, booking, "OFFERED", "DispatchOfferCreated")
-        for rank, provider in ranked[: get_settings().dispatch_batch_size]:
+        for rank, provider, details in ranked[: get_settings().dispatch_batch_size]:
             offer = Offer(
                 booking_id=booking.id,
                 provider_id=provider.id,
                 rank_score=rank,
+                ranking_details=details,
                 expires_at=now() + timedelta(seconds=get_settings().dispatch_offer_seconds),
             )
             db.add(offer)
@@ -458,6 +450,10 @@ def job_action(db: Session, user: User, booking_id: UUID, action: str) -> dict:
     }
     if action not in actions:
         raise HTTPException(404, "Unknown job action")
+    if action == "complete":
+        from .jobs import validate_completion
+
+        validate_completion(db, booking)
     target, name = actions[action]
     change(db, user, booking, target, name)
     if action == "complete":

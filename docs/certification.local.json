@@ -2,8 +2,8 @@
   "environment": "local-container",
   "cloud_staging_certified": false,
   "base_url": "http://localhost:8000",
-  "started_at": "2026-09-13T09:41:37.233219+00:00",
-  "booking_id": "d7b47cc0-ad3d-40a4-b27a-78a2e4824cf1",
+  "started_at": "2026-09-13T10:48:09.629694+00:00",
+  "booking_id": "1ce84212-95aa-4ecf-bcfc-f3c27bb61a07",
   "checks": {
     "health": true,
     "readiness": true,
@@ -30,7 +30,8 @@
     "admin_ledger_and_earning_visibility": true,
     "balanced_ledger": true,
     "audit_trail": true,
-    "worker_and_realtime_delivery": true
+    "worker_and_realtime_delivery": true,
+    "asynchronous_notification_gateway": true
   },
   "status": "PASS",
   "host_access_url": "http://127.0.0.1:18092"
