@@ -31,14 +31,21 @@ review candidate, not a certified production release.
 - Unit, integration, contract and API E2E: 55 passed plus 3 subtests on PostgreSQL 17 and separately on
   an empty PostgreSQL 18/PostGIS database with Redis. Two upstream test-client deprecation warnings remain.
 - HTTP/WebSocket container certification: all 26 checks PASS; [step-by-step evidence](certification.local.json).
+- Restricted runtime-role verification: all 55 tests plus 3 subtests pass using `larimia_app`,
+  provisioned by the migration script without superuser/schema-creation or journal-update rights.
+- Local read baseline: 50 sequential catalog reads, median 3.18 ms / p95 5.14 ms; this is not a
+  sustained or cloud-load benchmark.
 - API/worker restart: previous booking receipt and captured payment remained readable; readiness PASS.
 - Ruff and format checks: PASS. Mypy: PASS across 93 source files. Bandit: zero medium/high findings.
 - Frozen dependency audit: no known public-package vulnerabilities; the private project itself is not
   on PyPI and is assessed through source review/Bandit rather than registry lookup.
-- Secret scan: candidate tracked-file scan recorded at publication; ignored local .env is excluded.
+- Secret scan: candidate tracked-file scan PASS; ignored local .env is excluded. The PR workflow also
+  scans Git history; its metadata read permission was corrected after the first remote run.
 - OpenAPI validation, unique operation IDs and bearer declaration checks: PASS.
 - Docker build/non-root runtime: PASS. Bicep foundation/runtime compilation and workflow lint: PASS.
-- GitHub CI: pending branch publication; final remote status will be updated after execution.
+- GitHub backend CI: [PASS on source commit 73b1b8e](https://github.com/appolon1908-hue/LARIM-A-Backend/actions/runs/34750238438),
+  including the container HTTP/WebSocket scenario. Current checks are attached to
+  [draft PR #9](https://github.com/appolon1908-hue/LARIM-A-Backend/pull/9).
 - Cloud smoke/CD, live Entra and external telemetry export: not executed.
 
 ## 6. Infrastructure report
