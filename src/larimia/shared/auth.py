@@ -33,6 +33,7 @@ class Principal:
     roles: frozenset[Role]
     organization_id: str | None = None
     market_codes: frozenset[str] = frozenset()
+    session_id: str | None = None
 
 
 @lru_cache(maxsize=4)
@@ -130,7 +131,12 @@ def get_principal(
             )
         except JWTError as exc:
             raise HTTPException(401, "Invalid token") from exc
-        return Principal(subject=claims["sub"], issuer="larimia-local", roles=frozenset())
+        return Principal(
+            subject=claims["sub"],
+            issuer="larimia-local",
+            roles=frozenset(),
+            session_id=claims.get("sid"),
+        )
     if settings.auth_mode == "oidc":
         if not authorization or not authorization.lower().startswith("bearer "):
             raise HTTPException(status_code=401, detail={"code": "AUTH_REQUIRED"})

@@ -45,6 +45,7 @@ See [local development](docs/local-development.md) for host and container test c
 - [Mission 2 migration contract](docs/frontend-migration-contract.md)
 - [Generated OpenAPI](openapi.generated.json)
 - [Architecture](docs/architecture.md), [domain model](docs/domain-model.md)
+- [Profiles and devices](docs/account-profiles-devices.md)
 - [Notifications](docs/notifications.md), [job execution](docs/job-execution.md)
 - [Security](docs/security.md), [operations](docs/operations-runbook.md)
 - [Azure source and staging gates](docs/staging.md)

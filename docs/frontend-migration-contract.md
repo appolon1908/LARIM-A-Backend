@@ -55,3 +55,13 @@ are implemented. Legacy booking rows remain operations-only until reviewed migra
   `/admin/jobs/evidence/{document_id}/review`. Policy edits affect future quotes only.
 - Offer ranking_details now includes ETA/distance, local estimate provenance, historical signals and
   the weights used. Label local estimates appropriately; do not display them as live traffic predictions.
+
+
+## Account/device continuation (0010)
+
+GET/PUT `/me/profile` and `/me/preferences` provide owned profile and preference state. POST/GET
+`/me/devices` and DELETE `/me/devices/{id}` manage installations. For local auth, register the device
+then include `device_id` at login. Replace access and refresh tokens together on refresh and reconnect
+WebSockets: the previous access token is revoked immediately. Removing a device revokes its bound
+sessions and closes active realtime streams. Entra tokens retain identity-provider lifecycle semantics.
+See docs/account-profiles-devices.md; no raw push-token or banking fields belong in these payloads.

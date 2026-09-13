@@ -2,8 +2,8 @@
 
 | Boundary | Persisted aggregates / value objects |
 |---|---|
-| Identity | User, issuer binding, persisted roles, RefreshSession, append-only LoginSucceeded audit |
-| Customer | Owned Address, Block, User profile |
+| Identity | User, issuer binding, persisted roles, Device and revocable RefreshSession, append-only LoginSucceeded audit |
+| Customer | Owned Address, Block, AccountProfile and typed preferences |
 | Provider | Provider profile; approval state, verified-by-review skills, services, UTC availability windows, service area and performance values |
 | Catalog/pricing | Service, Promotion, versioned rules, expiring Quote and immutable accepted snapshot |
 | Booking/jobs | MarketplaceBooking, StatusHistory, assignment, provider progression, snapshotted ServiceJobPolicy, JobChecklistItem, JobTimeEntry and private booking evidence |
@@ -16,8 +16,8 @@
 
 Availability, service requirements, pricing components, address snapshots and payout item references
 are embedded aggregate values rather than independent microservices. This implementation does not
-claim every named future entity in the mission as a separate completed domain: devices, banking
-onboarding, customer preference management, paid job extras and read receipts,
+claim every named future entity in the mission as a separate completed domain: banking
+onboarding, paid job extras and read receipts,
 review reporting, risk scoring remain extensions.
 Core lifecycle routes do not silently simulate those features.
 
