@@ -1,7 +1,10 @@
 import uuid
 from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict, Field
+
 from larimia.bookings.domain.enums import BookingStatus
+
 
 class BookingCreate(BaseModel):
     customer_id: uuid.UUID
@@ -10,6 +13,7 @@ class BookingCreate(BaseModel):
     scheduled_start: datetime
     scheduled_end: datetime
     customer_total_minor: int = Field(ge=0)
+
 
 class BookingRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)

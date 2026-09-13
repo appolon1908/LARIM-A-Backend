@@ -1,5 +1,7 @@
 from dataclasses import dataclass
+
 from larimia.shared.auth import Principal
+
 
 @dataclass(frozen=True)
 class CommandContext:

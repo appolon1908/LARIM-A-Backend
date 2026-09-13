@@ -1,0 +1,91 @@
+name: deploy-staging
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: Full commit SHA with passing backend-ci
+        required: true
+permissions:
+  contents: read
+  checks: read
+  id-token: write
+concurrency:
+  group: larimia-staging-release
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 40
+    env:
+      RELEASE_SHA: ${{ inputs.commit }}
+      GH_TOKEN: ${{ github.token }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      AZURE_REGISTRY: ${{ vars.AZURE_REGISTRY }}
+      STAGING_PARAMETERS: ${{ vars.STAGING_PARAMETERS }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit }}
+      - name: Require immutable revision and successful source gate
+        run: |
+          [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+          gh api "repos/${GITHUB_REPOSITORY}/commits/${RELEASE_SHA}/check-runs" > "$RUNNER_TEMP/checks.json"
+          python - <<'PY'
+          import json, os
+          checks=json.load(open(os.environ['RUNNER_TEMP']+'/checks.json'))['check_runs']
+          assert all(any(c['name']==name and c['conclusion']=='success' and c['head_sha']==os.environ['RELEASE_SHA'] for c in checks) for name in ['verify','secrets']), 'Both source and secret gates must pass for this commit'
+          PY
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Build and select immutable image digest
+        run: |
+          az acr build --registry "$AZURE_REGISTRY" --image "larimia:$RELEASE_SHA" .
+          registry_server=$(az acr show --name "$AZURE_REGISTRY" --query loginServer -o tsv)
+          image_digest=$(az acr repository show --name "$AZURE_REGISTRY" --image "larimia:$RELEASE_SHA" --query digest -o tsv)
+          echo "RELEASE_IMAGE=$registry_server/larimia@$image_digest" >> "$GITHUB_ENV"
+      - name: Write nonsecret runtime parameters
+        shell: python
+        run: |
+          import json, os
+          params=json.loads(os.environ['STAGING_PARAMETERS'])
+          assert all('password' not in key.lower() for key in params), 'Use Key Vault references, not passwords'
+          with open(os.environ['RUNNER_TEMP']+'/runtime-parameters.json','w') as f:
+              json.dump({'$schema':'https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#','contentVersion':'1.0.0.0','parameters':{key:{'value':value} for key,value in params.items()}},f)
+      - name: Update migration job and wait for success
+        run: |
+          az deployment group create --resource-group "$AZURE_RESOURCE_GROUP" --template-file infra/runtime.bicep --parameters "@$RUNNER_TEMP/runtime-parameters.json" phase=migration image="$RELEASE_IMAGE" --query properties.outputs > "$RUNNER_TEMP/migration-output.json"
+          job=$(python -c "import json; print(json.load(open('$RUNNER_TEMP/migration-output.json'))['migrationJob']['value'])")
+          execution=$(az containerapp job start --name "$job" --resource-group "$AZURE_RESOURCE_GROUP" --query name -o tsv)
+          for _ in $(seq 1 60); do
+            state=$(az containerapp job execution show --name "$job" --resource-group "$AZURE_RESOURCE_GROUP" --job-execution-name "$execution" --query properties.status -o tsv)
+            if [ "$state" = Succeeded ]; then exit 0; fi
+            if [ "$state" = Failed ]; then exit 1; fi
+            sleep 10
+          done
+          exit 1
+      - name: Promote API and worker after migrations
+        run: |
+          az deployment group create --resource-group "$AZURE_RESOURCE_GROUP" --template-file infra/runtime.bicep --parameters "@$RUNNER_TEMP/runtime-parameters.json" phase=runtime image="$RELEASE_IMAGE" --query properties.outputs > "$RUNNER_TEMP/runtime-output.json"
+          host=$(python -c "import json; print(json.load(open('$RUNNER_TEMP/runtime-output.json'))['apiHost']['value'])")
+          echo "STAGING_BASE_URL=https://$host" >> "$GITHUB_ENV"
+          curl --fail --retry 12 --retry-delay 5 --retry-all-errors "https://$host/health/ready"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Certify dedicated staging identities
+        env:
+          LARIMIA_CERTIFICATION_TOKENS_JSON: ${{ secrets.STAGING_CERTIFICATION_TOKENS_JSON }}
+          LARIMIA_CERTIFICATION_ENABLED: 'true'
+        run: |
+          pip install uv==0.12.13
+          uv sync --frozen --all-extras
+          uv run --frozen python scripts/certify.py --base-url "$STAGING_BASE_URL" --output certification.staging.json --allow-staging
+      - uses: actions/upload-artifact@v4
+        with:
+          name: staging-certification-${{ inputs.commit }}
+          path: certification.staging.json

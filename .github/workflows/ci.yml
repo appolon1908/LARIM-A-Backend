@@ -2,32 +2,112 @@ name: backend-ci
 on:
   pull_request:
   push:
-    branches: [main]
-
+    branches: [main, develop]
+permissions:
+  contents: read
+concurrency:
+  group: larimia-ci-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         image: postgis/postgis:18-3.6
         env:
-          POSTGRES_DB: larimia
-          POSTGRES_USER: larimia
-          POSTGRES_PASSWORD: larimia
-        ports: ["5432:5432"]
+          POSTGRES_DB: larimia_ci
+          POSTGRES_USER: larimia_ci
+          POSTGRES_PASSWORD: isolated-ci-only
+        ports: ['5432:5432']
         options: >-
-          --health-cmd "pg_isready -U larimia -d larimia"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 20
+          --health-cmd "pg_isready -U larimia_ci -d larimia_ci"
+          --health-interval 3s --health-timeout 3s --health-retries 30
+      redis:
+        image: redis:8-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 3s --health-timeout 3s --health-retries 30
     env:
-      LARIMIA_DATABASE_URL: postgresql+psycopg://larimia:larimia@localhost:5432/larimia
+      LARIMIA_ENV: development
+      LARIMIA_AUTH_MODE: local
+      LARIMIA_DATABASE_URL: postgresql+psycopg://larimia_ci:isolated-ci-only@localhost:5432/larimia_ci
+      LARIMIA_REDIS_URL: redis://localhost:6379/0
+      LARIMIA_STORAGE_ROOT: /tmp/larimia-ci-private
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
-      - run: pip install uv
-      - run: uv pip install --system -e ".[dev]"
-      - run: ruff check src tests
-      - run: pytest -q
+          python-version: '3.13'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+      - run: pip install uv==0.12.13
+      - name: Generate isolated identity credentials
+        shell: python
+        run: |
+          import os, secrets
+          with open(os.environ['GITHUB_ENV'], 'a') as f:
+              for key in ['LARIMIA_LOCAL_JWT_SECRET', 'LARIMIA_SEED_PASSWORD']:
+                  value = secrets.token_urlsafe(48)
+                  print('::add-mask::' + value)
+                  f.write(key + '=' + value + '\n')
+      - run: uv sync --frozen --all-extras
+      - run: uv run --frozen --all-extras ruff check src tests scripts migrations
+      - run: uv run --frozen --all-extras ruff format --check src tests scripts migrations
+      - run: uv run --frozen --all-extras mypy src
+      - run: uv run --frozen --all-extras bandit -r src -ll
+      - run: uv run --frozen --all-extras pip-audit
+      - name: Empty-database migrations and repeatable seed
+        run: |
+          uv run --frozen alembic upgrade head
+          uv run --frozen alembic current
+          uv run --frozen python scripts/seed.py
+          uv run --frozen python scripts/seed.py
+      - run: uv run --frozen --all-extras pytest -q --junitxml=test-results.xml
+      - run: uv run --frozen python scripts/export_openapi.py
+      - name: Validate OpenAPI
+        run: uv run --frozen --all-extras python -c "import json; from openapi_spec_validator import validate; validate(json.load(open('openapi.generated.json')))"
+      - name: Compile Azure infrastructure without deployment
+        run: |
+          az bicep install --version v0.47.16
+          az bicep build --file infra/main.bicep --outfile "$RUNNER_TEMP/foundation.json"
+          az bicep build --file infra/runtime.bicep --outfile "$RUNNER_TEMP/runtime.json"
+      - name: Build immutable candidate
+        run: docker build -t larimia-backend:${{ github.sha }} .
+      - name: Verify runtime identity and migration packaging
+        run: |
+          test "$(docker run --rm --entrypoint id larimia-backend:${{ github.sha }} -u)" = 10001
+          docker run --rm --entrypoint test larimia-backend:${{ github.sha }} -f migrations/versions/0006_event_delivery.py
+      - name: Isolate the container certification database
+        run: |
+          uv run --frozen python - <<'PYCODE'
+          import os
+          import psycopg
+          from sqlalchemy.engine import make_url
+          url = make_url(os.environ['LARIMIA_DATABASE_URL'])
+          with psycopg.connect(url.render_as_string(hide_password=False).replace('postgresql+psycopg://', 'postgresql://'), autocommit=True) as db:
+              db.execute('CREATE DATABASE larimia_certification')
+          with open(os.environ['GITHUB_ENV'], 'a') as f:
+              f.write('LARIMIA_DATABASE_URL=' + url.set(database='larimia_certification').render_as_string(hide_password=False) + '\n')
+          PYCODE
+      - name: Certify the API and worker containers over HTTP and WebSocket
+        run: |
+          uv run --frozen alembic upgrade head
+          uv run --frozen python scripts/seed.py
+          docker run -d --name larimia-ci-api --network host --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges -e LARIMIA_ENV -e LARIMIA_AUTH_MODE -e LARIMIA_DATABASE_URL -e LARIMIA_REDIS_URL -e LARIMIA_LOCAL_JWT_SECRET -e LARIMIA_SEED_PASSWORD -e LARIMIA_STORAGE_ROOT larimia-backend:${{ github.sha }}
+          docker run -d --name larimia-ci-worker --network host --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges -e LARIMIA_ENV -e LARIMIA_AUTH_MODE -e LARIMIA_DATABASE_URL -e LARIMIA_REDIS_URL larimia-backend:${{ github.sha }} python -m larimia.marketplace.worker
+          trap 'docker rm -f larimia-ci-api larimia-ci-worker' EXIT
+          curl --fail --retry 20 --retry-delay 1 --retry-all-errors http://localhost:8000/health/ready
+          uv run --frozen python scripts/certify.py --base-url http://localhost:8000 --output certification.ci.json
+          docker restart larimia-ci-api larimia-ci-worker
+          curl --fail --retry 20 --retry-delay 1 --retry-all-errors http://localhost:8000/health/ready
+      - uses: actions/upload-artifact@v4
+        with:
+          name: backend-contract-and-tests
+          path: |
+            openapi.generated.json
+            test-results.xml
+            certification.ci.json

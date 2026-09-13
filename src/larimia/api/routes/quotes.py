@@ -1,7 +1,9 @@
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
+
 from larimia.shared.idempotency import require_idempotency_key
 
 router = APIRouter()
@@ -13,6 +15,7 @@ BASE_PRICES = {
     "TRAINING_60": 300000,
 }
 
+
 class QuoteRequest(BaseModel):
     market_code: str
     currency: str = Field(pattern=r"^[A-Z]{3}$")
@@ -20,6 +23,7 @@ class QuoteRequest(BaseModel):
     address_id: str
     scheduled_start: datetime
     add_ons: list[str] = []
+
 
 @router.post("", status_code=201)
 def create_quote(payload: QuoteRequest, _: str = Depends(require_idempotency_key)):
@@ -32,7 +36,7 @@ def create_quote(payload: QuoteRequest, _: str = Depends(require_idempotency_key
         "id": str(uuid.uuid4()),
         "market_code": payload.market_code,
         "currency": payload.currency,
-        "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat(),
+        "expires_at": (datetime.now(UTC) + timedelta(minutes=10)).isoformat(),
         "lines": [
             {"type": "SERVICE", "amount_minor": base},
             {"type": "TRAVEL", "amount_minor": travel},
