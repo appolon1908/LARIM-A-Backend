@@ -80,7 +80,7 @@ jobs:
       - name: Verify runtime identity and migration packaging
         run: |
           test "$(docker run --rm --entrypoint id larimia-backend:${{ github.sha }} -u)" = 10001
-          docker run --rm --entrypoint test larimia-backend:${{ github.sha }} -f migrations/versions/0009_dispatch_ranking.py
+          docker run --rm --entrypoint test larimia-backend:${{ github.sha }} -f migrations/versions/0010_accounts.py
       - name: Isolate the container certification database
         run: |
           uv run --frozen python - <<'PYCODE'

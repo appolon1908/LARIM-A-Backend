@@ -20,3 +20,7 @@ arbitrary demo headers.
 
 No live Entra tenant login is claimed by local RSA token tests. Dedicated customer/provider/workforce
 identities and their provisioning remain external staging setup.
+
+Local sessions now carry sid and optional owned device binding. Refresh/logout/device revocation
+invalidates the associated access tokens and WebSockets. See account-profiles-devices.md for client
+rotation, identity-provider boundaries and migration/rollback requirements.
