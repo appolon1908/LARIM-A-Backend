@@ -37,6 +37,9 @@ jobs:
       LARIMIA_STORAGE_ROOT: /tmp/larimia-ci-private
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
@@ -59,7 +62,10 @@ jobs:
       - run: uv run --frozen --all-extras ruff format --check src tests scripts migrations
       - run: uv run --frozen --all-extras mypy src
       - run: uv run --frozen --all-extras bandit -r src -ll
-      - run: uv run --frozen --all-extras pip-audit
+      - name: Audit every locked external dependency with hashes
+        run: |
+          uv export --frozen --all-extras --no-emit-project --format requirements.txt --output-file "$RUNNER_TEMP/locked-external-requirements.txt" > /dev/null
+          uv run --frozen --all-extras pip-audit --require-hashes -r "$RUNNER_TEMP/locked-external-requirements.txt"
       - name: Empty-database migrations and repeatable seed
         run: |
           uv run --frozen alembic upgrade head
