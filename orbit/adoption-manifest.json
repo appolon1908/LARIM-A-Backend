@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "2.0.0",
+  "repository": "appolon1908-hue/LARIM-A-Backend",
+  "classification": "backend-api",
+  "targetBranch": "codex/codestra-orbit-v2-larim-a-backend",
+  "adoptionMode": "contract-only",
+  "domain": null,
+  "domainStatus": "not-applicable",
+  "requirements": {
+    "canonicalIssuer": true,
+    "backendAuthorization": true,
+    "tenantIsolation": true,
+    "sameOriginSessionContractWhenOwned": true,
+    "brandContentAssetFooterContractsWhenOwned": true,
+    "mobileAppLinkContract": true,
+    "audit": true,
+    "rollback": true,
+    "noFabricatedBrowserUi": true
+  },
+  "status": "branch-created",
+  "blockers": [
+    "SDK-repository pull request 75 must complete protected review before shared Orbit contracts are promoted.",
+    "Map existing identity, booking, dispatch, professional, location, payment, provider, document, and operator authority before API changes.",
+    "Register API/domain/mobile app-link, monitoring, immutable release, and rollback evidence without adding presentation source."
+  ]
+}
