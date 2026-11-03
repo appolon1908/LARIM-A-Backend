@@ -31,17 +31,10 @@ def identify(token):
     principal = get_principal(
         authorization="Bearer " + token, x_demo_subject=None, x_demo_roles=None
     )
+    from .security import current_user
+
     with SessionLocal() as db:
-        user = db.scalar(
-            select(User).where(
-                User.subject == principal.subject,
-                User.issuer == principal.issuer,
-                User.active.is_(True),
-            )
-        )
-        if not user:
-            raise ValueError("Account is disabled or missing")
-        return user.id
+        return current_user(principal=principal, db=db).id
 
 
 def read_batch(user_id, since, last_id):

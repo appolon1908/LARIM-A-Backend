@@ -249,6 +249,9 @@ class Promotion(Entity, Base):
 
 
 class RefreshSession(Entity, Base):
+    device_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("account_devices.id"), index=True
+    )
     __tablename__ = "refresh_sessions"
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("marketplace_users.id"), index=True)
     token_hash: Mapped[str] = mapped_column(String(64), unique=True)
@@ -336,3 +339,21 @@ class JobTimeEntry(Entity, Base):
     provider_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("provider_profiles.id"), index=True)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class AccountProfile(Entity, Base):
+    __tablename__ = "account_profiles"
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("marketplace_users.id"), unique=True)
+    display_name: Mapped[str] = mapped_column(String(120), default="")
+    locale: Mapped[str] = mapped_column(String(35), default="es-DO")
+    timezone: Mapped[str] = mapped_column(String(100), default="America/Santo_Domingo")
+    preferences: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class Device(Entity, Base):
+    __tablename__ = "account_devices"
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("marketplace_users.id"), index=True)
+    label: Mapped[str] = mapped_column(String(80))
+    platform: Mapped[str] = mapped_column(String(16))
+    revoked: Mapped[bool] = mapped_column(Boolean, default=False)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

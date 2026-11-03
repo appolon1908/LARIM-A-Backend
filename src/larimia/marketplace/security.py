@@ -3,6 +3,7 @@ import hashlib
 import hmac
 import secrets
 from datetime import timedelta
+from uuid import UUID
 
 import jwt
 from fastapi import Depends, HTTPException
@@ -62,13 +63,14 @@ def verify_password(password: str, encoded: str) -> bool:
     return hmac.compare_digest(raw[16:], actual)
 
 
-def issue_token(user: User) -> str:
+def issue_token(user: User, session_id: UUID | None = None) -> str:
     settings = get_settings()
     if settings.auth_mode != "local" or not settings.local_jwt_secret:
         raise HTTPException(503, "Local identity is disabled")
     return jwt.encode(
         {
             "sub": user.subject,
+            **({"sid": str(session_id)} if session_id else {}),
             "iss": "larimia-local",
             "aud": "larimia-api",
             "exp": now() + timedelta(minutes=30),
@@ -87,6 +89,25 @@ def current_user(
     )
     if not user or not user.active:
         raise HTTPException(403, "Account is not provisioned or is disabled")
+    if principal.issuer == "larimia-local" and principal.session_id:
+        from .models import Device, RefreshSession
+
+        try:
+            session_id = UUID(principal.session_id)
+        except (TypeError, ValueError, AttributeError) as exc:
+            raise HTTPException(401, "Invalid session") from exc
+        session = db.get(RefreshSession, session_id)
+        if (
+            not session
+            or session.user_id != user.id
+            or session.revoked
+            or session.expires_at <= now()
+        ):
+            raise HTTPException(401, "Session revoked or expired")
+        if session.device_id:
+            device = db.get(Device, session.device_id)
+            if not device or device.user_id != user.id or device.revoked:
+                raise HTTPException(401, "Device revoked")
     settings = get_settings()
     if settings.env in {"staging", "production"}:
         workforce = any(role.lower() not in {"customer", "provider"} for role in user.roles)
@@ -109,21 +130,34 @@ def require(permission: str):
     return dependency
 
 
-def new_session(db: Session, user: User) -> dict:
-    import hashlib
+def new_session(db: Session, user: User, device_id: UUID | None = None) -> dict:
+    from .models import Device, RefreshSession
 
-    from .models import RefreshSession
-
-    raw = secrets.token_urlsafe(48)
-    db.add(
-        RefreshSession(
-            user_id=user.id,
-            token_hash=hashlib.sha256(raw.encode()).hexdigest(),
-            expires_at=now() + timedelta(days=7),
-        )
+    # All device/session mutations serialize on the owner first.
+    owner = db.scalar(
+        select(User)
+        .where(User.id == user.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
     )
+    if owner is None or not owner.active:
+        raise HTTPException(401, "Account disabled")
+    if device_id:
+        device = db.get(Device, device_id)
+        if device is None or device.user_id != user.id or device.revoked:
+            raise HTTPException(401, "Device unavailable")
+        device.last_seen_at = now()
+    raw = secrets.token_urlsafe(48)
+    session = RefreshSession(
+        user_id=user.id,
+        device_id=device_id,
+        token_hash=hashlib.sha256(raw.encode()).hexdigest(),
+        expires_at=now() + timedelta(days=7),
+    )
+    db.add(session)
+    db.flush()
     return {
-        "access_token": issue_token(user),
+        "access_token": issue_token(user, session.id),
         "refresh_token": raw,
         "token_type": "bearer",
         "expires_in": 1800,

@@ -28,15 +28,15 @@ review candidate, not a certified production release.
 
 ## 5. Test report
 
-- Unit, integration, contract and API E2E: 68 passed plus 3 subtests on PostgreSQL 17 and separately on
+- Unit, integration, contract and API E2E: 73 passed plus 3 subtests on PostgreSQL 17 and separately on
   an empty PostgreSQL 18/PostGIS database with Redis. Two upstream test-client deprecation warnings remain.
 - HTTP/WebSocket container certification: all 27 checks PASS; [step-by-step evidence](certification.local.json).
-- Restricted runtime-role verification: all 68 tests plus 3 subtests pass using `larimia_app`,
+- Restricted runtime-role verification: all 73 tests plus 3 subtests pass using `larimia_app`,
   provisioned by the migration script without superuser/schema-creation or journal-update rights.
 - Local read baseline: 50 sequential catalog reads, median 3.18 ms / p95 5.14 ms; this is not a
   sustained or cloud-load benchmark.
 - API/worker restart: previous booking receipt and captured payment remained readable; readiness PASS.
-- Ruff and format checks: PASS. Mypy: PASS across 98 source files. Bandit: zero medium/high findings.
+- Ruff and format checks: PASS. Mypy: PASS across 99 source files. Bandit: zero medium/high findings.
 - Frozen dependency audit: no known public-package vulnerabilities; the private project itself is not
   on PyPI and is assessed through source review/Bandit rather than registry lookup.
 - Secret scan: candidate tracked-file scan PASS; ignored local .env is excluded. The PR workflow also
@@ -58,7 +58,7 @@ health and dedicated mock-payment certification. It has not been triggered.
 
 ## 7. Database report
 
-Alembic revision: **0009**. Empty PostgreSQL 18 database → head → seed twice → complete test suite PASS.
+Alembic revision: **0010**. Empty PostgreSQL 18 database → head → seed twice → complete test suite PASS.
 Existing 0001/0002 tables are preserved. New marketplace rows have explicit quote provenance; legacy
 booking rows are available only to authorized operations pending a reviewed mapping. Forward-only
 financial migrations reject automatic destructive downgrade. Application rollback requires an image
@@ -66,7 +66,7 @@ compatible with the expanded schema; restore into a separate database before any
 
 ## 8. API report
 
-[OpenAPI](../openapi.generated.json): 100 canonical operations across 89 `/api/v1` paths, compatibility
+[OpenAPI](../openapi.generated.json): 107 canonical operations across 93 `/api/v1` paths, compatibility
 aliases under `/v1`, health and authenticated WebSocket gateway. Typed booking/quote schemas protect
 critical frontend flows; broader secondary response schemas still need expansion.
 
@@ -104,3 +104,16 @@ The full suite includes a standalone worker subprocess regression after catching
 import dependency. CI uses three application containers for API, outbox worker and notification worker.
 Current follow-up CI results are attached to PR #9; the earlier linked run remains historical evidence.
 See notifications.md, job-execution.md and the frontend migration contract for integration details.
+
+
+## Approved continuation — accounts and devices
+
+0010 adds owned account profiles/preferences, idempotent device registration and revocation, optional
+local login device binding and signed server-session IDs. Refresh/logout revoke old access tokens;
+API and live WebSocket authorization recheck session/device status. The 73-test suite passes after an
+empty PostgreSQL 18 migration, repeatable seed and restricted runtime-role provisioning; all 27 local
+container certification checks also pass. Tests include concurrent refresh-versus-revocation and an
+already-open WebSocket closing after revocation. Current remote evidence is attached to the account/device follow-up PR; PR #9 is the merged baseline.
+
+Entra session/device revocation remains identity-provider responsibility. Pre-0010 auth rollback needs
+signing-key invalidation; see account-profiles-devices.md. Banking onboarding is still an open M04 gate.

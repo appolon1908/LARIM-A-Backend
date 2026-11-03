@@ -70,7 +70,9 @@ def register(
 
 
 @router.post("/auth/login")
-def login(payload: s.Credentials, db: Session = Depends(get_db)):
+def login(payload: s.LoginInput, db: Session = Depends(get_db)):
+    if get_settings().auth_mode != "local":
+        raise HTTPException(403, "Login is owned by the identity provider")
     user = db.scalar(select(User).where(User.email == payload.email.lower(), User.active.is_(True)))
     if (
         not user
@@ -87,7 +89,7 @@ def login(payload: s.Credentials, db: Session = Depends(get_db)):
     )
     from .security import new_session
 
-    session = new_session(db, user)
+    session = new_session(db, user, payload.device_id)
     db.commit()
     return session
 
@@ -764,17 +766,28 @@ def notifications(
 
 @router.post("/auth/refresh")
 def refresh(payload: s.RefreshInput, db: Session = Depends(get_db)):
+    if get_settings().auth_mode != "local":
+        raise HTTPException(403, "Refresh is owned by the identity provider")
     import hashlib
 
     from .models import RefreshSession
     from .security import new_session
 
+    token_hash = hashlib.sha256(payload.refresh_token.encode()).hexdigest()
+    initial = db.scalar(select(RefreshSession).where(RefreshSession.token_hash == token_hash))
+    if initial is None:
+        raise HTTPException(401, "Refresh session invalid")
+    user = db.scalar(
+        select(User)
+        .where(User.id == initial.user_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
     row = db.scalar(
         select(RefreshSession)
-        .where(
-            RefreshSession.token_hash == hashlib.sha256(payload.refresh_token.encode()).hexdigest()
-        )
+        .where(RefreshSession.id == initial.id)
         .with_for_update()
+        .execution_options(populate_existing=True)
     )
     if not row or row.revoked or row.expires_at <= now():
         raise HTTPException(401, "Refresh session invalid")
@@ -782,7 +795,7 @@ def refresh(payload: s.RefreshInput, db: Session = Depends(get_db)):
     if not user.active:
         raise HTTPException(401, "Account disabled")
     row.revoked = True
-    result = new_session(db, user)
+    result = new_session(db, user, row.device_id)
     db.commit()
     return result
 
@@ -791,6 +804,8 @@ def refresh(payload: s.RefreshInput, db: Session = Depends(get_db)):
 def logout(
     payload: s.RefreshInput, user: User = Depends(current_user), db: Session = Depends(get_db)
 ):
+    if get_settings().auth_mode != "local":
+        raise HTTPException(403, "Logout is owned by the identity provider")
     import hashlib
 
     from .models import RefreshSession

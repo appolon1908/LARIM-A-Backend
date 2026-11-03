@@ -13,6 +13,10 @@ class Credentials(Input):
     password: str = Field(min_length=12, max_length=128, repr=False)
 
 
+class LoginInput(Credentials):
+    device_id: UUID | None = None
+
+
 class AddressInput(Input):
     label: str = Field(min_length=1, max_length=120)
     latitude: float = Field(ge=-90, le=90)
